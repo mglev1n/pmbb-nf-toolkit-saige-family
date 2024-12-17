@@ -29,7 +29,7 @@ SAIGE GWAS is a pipeline for performing genome wide association studies of varia
 
 * Docker Command: `docker pull pennbiobank/saige:latest`
 
-* Command to Pull from Google Container Registry: `docker pull gcr.io/ritchie-aou-psom-9015/saige:latest`
+* Command to Pull from Google Container Registry: `docker pull gcr.io/verma-pmbb-codeworks-psom-bf87/saige:latest`
 
 * Run Command: `nextflow run workflows/saige_gwas.nf -config nextflow.config -profile cluster`
 
@@ -311,17 +311,17 @@ params {
     step1_script = "/usr/local/bin/step1_fitNULLGLMM.R"
     step2_script = "/usr/local/bin/step2_SPAtests.R"
 
-    data_csv = "/path/to/directory/common_ICD_covariate_ALL.csv"
+    data_csv = "/path/to/data/common_ICD_covariate_ALL.csv"
 
-    cohort_sets = "/path/to/directory/Imputed_sample_table.csv"
+    cohort_sets = "/path/to/data/Imputed_sample_table.csv"
 
     // default paths are for PMBB Geno data
-    step1_plink_prefix  = "/path/to/directory/pruned_data"
-    step2_plink_prefix = "/path/to/directory/pruned_data"
+    step1_plink_prefix  = "/path/to/data/pruned_data"
+    step2_plink_prefix = "/path/to/data/pruned_data"
     
     // default paths for Imputed Geno data BGEN
-    step2_bgen_prefix  = "/path/to/directory/PMBB-Release-2020-2.0_genetic_imputed-topmed-r2_chr"
-    bgen_samplefile = "/path/to/directory/PMBB-Release-2020-2.0_genetic_imputed-topmed-r2_bgen.sample"
+    step2_bgen_prefix  = "/path/to/data/PMBB-Release-2020-2.0_genetic_imputed-topmed-r2_chr"
+    bgen_samplefile = "/path/to/data/PMBB-Release-2020-2.0_genetic_imputed-topmed-r2_bgen.sample"
     
     
     // categorical and continuous covariates
@@ -375,10 +375,10 @@ params {
         ]
 
     // binary and quantitative phenotype lists
-    bin_pheno_list = "/path/to/directory/common_ICD_list.txt"
+    bin_pheno_list = "/path/to/data/common_ICD_list.txt"
     quant_pheno_list = []
 
-    sex_specific_pheno_file = "/path/to/directory/icd_Sex_specific.txt"
+    sex_specific_pheno_file = "/path/to/data/icd_Sex_specific.txt"
     
     gwas_col_names = [
         CHR: 'chromosome',
@@ -453,7 +453,7 @@ RUN apt-get update \
     && rm -R NEAT-Plots biofilter.tar.gz
 
 # dev: for SAIGE and SAIGE-dependent packages
-FROM rocker/tidyverse:4.1.3 as dev
+FROM rocker/tidyverse:4.1.3 AS dev
 
 WORKDIR /tmp
 
@@ -477,7 +477,7 @@ RUN apt-get update && \
     && rm -R SAIGE
 
 # main: file image with only necessary packages and scripts
-FROM ubuntu:20.04 as main
+FROM ubuntu:20.04 AS main
 
 WORKDIR /app
 
@@ -507,48 +507,58 @@ USER root
 
 
 ```
-// includeConfig '${launchDir}/configs/saige_exwas.config'
-// includeConfig '${launchDir}/configs/saige_gene_phewas.config'
-includeConfig '${launchDir}/configs/saige_variant_phewas.config'
+// includeConfig 'configs/saige_exwas.config'
+// includeConfig 'configs/saige_gene_phewas.config'
+includeConfig 'configs/saige_variant_phewas.config'
 
 profiles {
 
     non_docker_dev {
-        process.executor = 'local'
+        // run locally without docker
+        process.executor = awsbatch-or-lsf-or-slurm-etc
     }
 
     standard {
-        process.executor = 'local'
-        process.container = Enter .sif file
+        // run locally with docker
+        process.executor = awsbatch-or-lsf-or-slurm-etc
+        process.container = 'karlkeat/saige_exwas'
         docker.enabled = true
     }
 
     cluster {
-        process.executor = 'lsf'
-        process.queue = Enter the Queue name
+        // run on LSF cluster
+        process.executor = awsbatch-or-lsf-or-slurm-etc
+        process.queue = 'epistasis_normal'
         executor {
             queueSize=500
         }
         process.memory = '15GB'
-    	process.container = Enter .sif file
+    	process.container = 'saige.sif'
         singularity.enabled = true
-        singularity.runOptions = '-B /project/,/static/'
+        singularity.runOptions = '-B /root/,/directory/,/names/'
     }
 
     all_of_us {
-        process.executor = 'google-lifesciences'
-        process.memory = '15GB'
-        process.container = Enter .sif file
-        google.zone = "us-central1-a"
-        google.project = 'verma-pmbb-codeworks-psom-bf87' // change to your project id
-        google.lifeSciences.debug = true
+        // CHANGE EVERY TIME! These are specific for each user, see docs
+        google.lifeSciences.serviceAccountEmail = 'pet-XXX-@terra.vpc-sc-XXXXXXXX.iam.gserviceaccount.com' // change to user-specific service email
+        workDir='gs://fc-secure/path/to/workdir' // change to your user-specific working directory in your workspace bucket
+        google.project = 'terra.vpc-sc-XXXXXXXX' // change to your user-specific project ID
+
+        // These should not be changed unless you are an advanced user
+        process.container = 'gcr.io/verma-pmbb-codeworks-psom-bf87/saige:latest' // GCR SAIGE docker container (static)
+
+        // these are AoU, GCR parameters that should NOT be changed
+        process.memory = '15GB' // minimum memory per process (static)
+        process.executor = awsbatch-or-lsf-or-slurm-etc
+        google.zone = "us-central1-a" // AoU uses central time zone (static)
+        google.location = "us-central1"
+        google.lifeSciences.debug = true 
         google.lifeSciences.network = "network"
         google.lifeSciences.subnetwork = "subnetwork"
         google.lifeSciences.usePrivateAddress = false
-        google.lifeSciences.serviceAccountEmail = 'project-service-account@verma-pmbb-codeworks-psom-bf87.iam.gserviceaccount.com' // change to your service email
         google.lifeSciences.copyImage = "gcr.io/google.com/cloudsdktool/cloud-sdk:latest"
         google.enableRequesterPaysBuckets = true
-        workDir='gs://fc-secure-f3e7d01e-18fa-40ba-bb3e-4d7497ba7d5b/work/' // change to your working directory in your workspace bucket
+        // google.lifeSciences.bootDiskSize = "20.GB" // probably don't need this
     }
 }
 

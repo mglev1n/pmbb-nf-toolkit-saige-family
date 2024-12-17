@@ -90,7 +90,7 @@ for p in quant_phenos:
         outfile=f'{output_dir}/{p}.violinplot.png'
     else:
         outfile=f'{p}.violinplot.png'
-    plt.savefig(outfile)
+    plt.savefig(outfile,bbox_inches='tight')
     plt.clf()
 
 for p, subDF in pheno_info.groupby('PHENO'):

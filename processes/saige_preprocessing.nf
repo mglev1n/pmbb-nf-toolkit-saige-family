@@ -181,7 +181,8 @@ process check_quant_cohort_pheno_combo {
 
 // Actual process that parses the rows of the table:
 process parse_pheno_summary_table {
-    executor 'local'
+    machineType 'n2-standard-4'
+    
     cache false
     input:
         path pheno_table_file // this is the appropriate path object

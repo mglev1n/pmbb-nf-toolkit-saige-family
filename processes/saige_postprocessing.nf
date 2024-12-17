@@ -141,7 +141,7 @@ process merge_and_filter_saige_gene_singles_output {
 process merge_and_filter_saige_gwas_output {
     publishDir "${launchDir}/${cohort_dir}/Sumstats/"
     machineType 'n2-standard-16'
-    memory '35GB'
+    memory '200GB'
     input:
         // variables
         tuple val(cohort_dir), val(pheno), val(chr_list), path(chr_inputs)
@@ -192,12 +192,12 @@ process gzipFiles {
     """
 
     stub:
-    """
-    touch ${file_path}.gz
-    """
+        """
+        touch ${file_path}.gz
+        å"""
 }
 
-process merge_and_filter_saige_variantphewas_output {
+process merge_and_filter_saige_variant_phewas_output {
     publishDir "${launchDir}/${cohort_dir}/Sumstats/"
     machineType 'n2-standard-4'
     input:
@@ -230,6 +230,7 @@ process merge_and_filter_saige_variantphewas_output {
 process make_summary_regions_output {
     publishDir "${launchDir}/Summary/"
     machineType 'n2-standard-4'
+    label 'safe_to_skip'
     input:
         path(filtered_regions)
     output:
@@ -258,6 +259,7 @@ process make_summary_regions_output {
 process make_summary_singles_output {
     publishDir "${launchDir}/Summary/"
     machineType 'n2-standard-4'
+    label 'safe_to_skip'
     input:
         //stageAs: '?/*'
         path(filtered_singles)
@@ -288,6 +290,7 @@ process make_summary_singles_output {
 process make_summary_suggestive_gwas {
     publishDir "${launchDir}/Summary/"
     machineType 'n2-standard-4'
+    label 'safe_to_skip'
     input:
         path(filtered_singles)
     output:
@@ -314,10 +317,10 @@ process make_summary_suggestive_gwas {
         '''
 }
 
-//, arity: '1..*'
 process gwas_make_biofilter_positions_input {
     publishDir "${launchDir}/Annotations/"
     machineType 'n2-standard-4'
+    label 'safe_to_skip'
     input:
         //, stageAs: "?/*"
         path(filtered_sumstats)
@@ -350,6 +353,7 @@ process gwas_make_biofilter_positions_input {
 process make_summary_table_with_annot {
     publishDir "${launchDir}/Summary/"
     machineType 'n2-standard-4'
+    label 'safe_to_skip'
     input:
         path(all_filtered_sumstats)
         tuple val(data_nickname), path(biofilter_annots)
@@ -379,3 +383,4 @@ process make_summary_table_with_annot {
         touch saige_gwas_suggestive.csv
         '''
 }
+

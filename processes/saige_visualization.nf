@@ -36,7 +36,8 @@ process make_pheno_covar_summary_plots {
 process make_saige_gwas_plots {
     publishDir "${launchDir}/Plots/"
     machineType 'n2-standard-16'
-    memory '35GB'
+    memory '32GB'
+    label 'safe_to_skip'
     input:
         // from singles_merge_output
         tuple val(cohort), val(pheno), path(sumstats)
@@ -66,7 +67,8 @@ process make_saige_gwas_plots {
 process make_gwas_plots_with_annot {
     publishDir "${launchDir}/Plots/"
     machineType 'n2-standard-16'
-    memory '35GB'
+    memory '32GB'
+    label 'safe_to_skip'
     input:
         tuple val(cohort), val(pheno), path(sumstats), val(analysis), path(biofilter_annots)
         path plotting_script
@@ -93,16 +95,18 @@ process make_gwas_plots_with_annot {
         """
 }
 
-process make_saige_variantphewas_plots {
+process make_saige_variant_phewas_plots {
     publishDir "${launchDir}/Plots/"
     machineType 'n2-standard-16'
-    memory '35GB'
+    memory '32GB'
+    label 'safe_to_skip'
     input:
         path singles_outputs
         path plotting_script
         path pheno_descriptions_file
     output:
         path 'Plotting.log.txt'
+        path 'manhattan_plot_variant_*.png'
     shell:
         """
         echo "${params.singles_col_names.collect().join('\n')}" > colnames.txt
@@ -112,15 +116,16 @@ process make_saige_variantphewas_plots {
           --input_file_list ${singles_outputs}
         """
     stub:
-        """
+        '''
         touch Plotting.log.txt
-
-        """
+        touch manhattan_plot_variant_stub.png
+        '''
 }
 
 process make_saige_exwas_singles_plots {
     publishDir "${launchDir}/Plots/"
     machineType 'n2-standard-4'
+    label 'safe_to_skip'
     input:
         tuple val(cohort), val(pheno), path(singles_sumstats)
 
@@ -153,6 +158,7 @@ process make_saige_exwas_singles_plots {
 process make_saige_exwas_regions_plots {
     publishDir "${launchDir}/Plots/"
     machineType 'n2-standard-4'
+    label 'safe_to_skip'
     input:
         tuple val(cohort), val(pheno), path(regions_sumstats)
 
@@ -185,6 +191,7 @@ process make_saige_exwas_regions_plots {
 process make_saige_gene_phewas_regions_plots {
     publishDir "${launchDir}/Plots/"
     machineType 'n2-standard-4'
+    label 'safe_to_skip'
     input:
         tuple val(cohort), val(chr), path(sumstats_file)
         path phenotype_descriptions

@@ -82,7 +82,7 @@ include {
     } from '../processes/saige_visualization.nf'
 
 if (params.annotate) {
-  include { BIOFILTER_POSITIONS } from "${launchDir}/biofilter_wrapper.nf"
+  include { BIOFILTER_POSITIONS } from '../workflows/biofilter_wrapper.nf'
 }
 
 include {
@@ -92,7 +92,6 @@ include {
 workflow {
     cohort_pheno_sumstats = SAIGE_GWAS()
 }
-
 workflow SAIGE_GWAS {
   main:
     // cohort = Channel.fromList(params.cohort_list)
@@ -125,10 +124,6 @@ workflow SAIGE_GWAS {
     pheno_table = preprocessing_output[2]
     cohort_sample_lists = preprocessing_output[3] //sample_list.txt path
     cohort_pheno_tables = preprocessing_output[4] //saige_pheno_covars.txt path
-
-    // keep_cohort_bin_pheno_combos.view{"kcbp: ${it}"}
-    // pheno_table.view{"pt: ${it}"}
-    // cohort_pheno_tables.view{"cpt: ${it}"}
 
     // Call Step 1 sub-workflow (SAIGE_STEP1)
     step1_is_gene = false
@@ -165,12 +160,14 @@ workflow SAIGE_GWAS {
     merge_singles_script = script_name_dict['merge']
 
     //step2outputfilestozip = step2_grouped_output.map{cohort_dir, pheno, chr_list, chr_inputs -> new Tuple(chr_inputs.join(' '))}
-    (singles_merge_output, filtered_singles_output) = merge_and_filter_saige_gwas_output(step2_grouped_output, merge_singles_script)
+    (singles_merge_output, filtered_singles_output) =  \
+    merge_and_filter_saige_gwas_output(step2_grouped_output, merge_singles_script)
     //sto = chr_inputs.map{chr_inputs-> new Tuple(chr_inputs.join(' '))}
     //gzipFiles(sto)
 
     filtered_singles_output_list = filtered_singles_output.collect() //make list of filter paths
     pos_input = filtered_singles_output.map { cohort, phecode, filtered_sumstats_path -> new Tuple(filtered_sumstats_path) }.collect()
+    //pos_input.view{"POS: ${it}"}
     // ANNOTATIONS
     if (params['annotate']) {
             biofilter_input = gwas_make_biofilter_positions_input(pos_input)
@@ -178,7 +175,8 @@ workflow SAIGE_GWAS {
             biofilter_annots = BIOFILTER_POSITIONS(bf_input_channel)
             plotting_script = script_name_dict['gwas_plots_with_annot']
             anno_input = filtered_singles_output.combine(biofilter_annots)
-            plots = make_gwas_plots_with_annot(singles_merge_output.combine(biofilter_annots), plotting_script, pheno_table)
+            plots = make_gwas_plots_with_annot(singles_merge_output.combine(biofilter_annots), \
+                                              plotting_script, pheno_table)
             make_summary_table_with_annot(pos_input, biofilter_annots)
             gwas_csvs = plots.filter{ it.name =~ /.*manifest.csv/ }.collect()
             gwas_analysis = "gwas"
@@ -193,7 +191,7 @@ workflow SAIGE_GWAS {
         gwas_csvs_2 = gwas_plots.filter{ it.name =~ /.*manifest.csv/ }.collect()
         gwas_analysis_2 = "gwas"
         // gwas_manifest_2 = collect_gwas_plots(gwas_analysis_2, gwas_csvs_2)
-     }
+    }
 
     emit:
       singles_merge_output

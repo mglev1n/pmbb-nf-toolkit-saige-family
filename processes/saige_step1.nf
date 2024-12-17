@@ -1,6 +1,6 @@
 
 process plink_qc_for_step1 {
-    publishDir "${cohort_dir}/Saige_Step1/"
+    // publishDir "${cohort_dir}/Saige_Step1/"
     machineType 'n2-standard-4'
     input:
         // variables
@@ -15,14 +15,24 @@ process plink_qc_for_step1 {
         // variables
         tuple val(cohort_dir), path('step1_plink.{bed,bim,fam}')
         path 'plink_qc.log'
-    shell:
-        """
-        stdbuf -e0 -o0 plink2 --make-bed \
-          --bfile ${input_bed.toString().replace('.bed', '')} \
-          --keep ${sample_list} \
-          --maf ${params.maf} --geno ${params.geno} --not-chr X,Y,MT --hwe ${params.hwe} --snps-only \
-          --out step1_plink > plink_qc.log
-        """
+    script:
+    """
+    thin_param=''
+    if [ "${params.thin_count}" != "" ]; then
+        thin_param="--thin-count ${params.thin_count}"
+    fi
+    
+    stdbuf -e0 -o0 plink2 --make-bed \
+        --bfile ${input_bed.toString().replace('.bed', '')} \
+        --keep ${sample_list} \
+        --maf ${params.maf} \
+        --geno ${params.geno} \
+        --not-chr X,Y,MT \
+        --hwe ${params.hwe} \
+        --snps-only \
+        \$thin_param \
+        --out step1_plink > plink_qc.log
+    """
     stub:
         '''
         touch step1_plink.bed
@@ -33,7 +43,7 @@ process plink_qc_for_step1 {
 }
 
 process plink_qc_for_step1_saige_gene {
-    publishDir "${cohort_dir}/Saige_Step1/"
+    // publishDir "${cohort_dir}/Saige_Step1/"
     machineType 'n2-standard-4'
     /* commmon variants : ld pruning 50 5 0.4
     / 10-20 : plink --counts --snplist -> 1000
@@ -136,9 +146,9 @@ String get_covar_list_args(String cohort, cohort_cat_covars, cohort_cont_covars)
 
     return output
 }
-
+/*
 process call_saige_step1_bin {
-    publishDir "${launchDir}/${cohort}/Saige_Step1/"
+    // publishDir "${launchDir}/${cohort}/Saige_Step1/"
     machineType 'n2-standard-4'
     
     label(params.GPU == 'ON' ? 'gpu_on' : 'gpu_off')
@@ -157,10 +167,9 @@ process call_saige_step1_bin {
             params.sex_strat_cohort_list.contains(cohort) ? params.sex_strat_cat_covars : params.cat_covars,
             params.sex_strat_cohort_list.contains(cohort) ? params.sex_strat_cont_covars : params.cont_covars)
         """
-
         if [ "${params.GPU}"  = "ON" ]; then
-            mpirun -n 3 singularity exec --bind /project/:/project/,./:/output,/static/ --nv \
-            /path/to/directory/saige-doe-3.sif \
+            mpirun -n 8 singularity exec --bind /path/to/data/ --nv \
+            saige-doe-3.sif \
             /opt/conda/lib/R/bin/Rscript /SAIGE_container/SAIGE-DOE/extdata/step1_fitNULLGLMM.R  \
             --plinkFile=step1_plink \
             --phenoFile=${pheno_file} \
@@ -193,9 +202,85 @@ process call_saige_step1_bin {
         touch ${pheno}.log
         """
 }
+*/
+process call_saige_step1_bin {
+    // publishDir "${launchDir}/${cohort}/Saige_Step1/"
+    machineType 'n2-standard-4'
+    
+    label(params.GPU == 'ON' ? 'gpu_on' : 'gpu_off')
+
+    errorStrategy 'retry'
+
+    input:
+        // variables
+        tuple val(cohort), val(pheno), path(plink_set), path(samples), path(pheno_file)
+    output:
+        // variables
+        tuple val(cohort), val(pheno), path("${pheno}.rda"), path("${pheno}.varianceRatio.txt")
+        path "${pheno}.log"
+    shell:
+        covariate_args = get_covar_list_args(cohort,
+            params.sex_strat_cohort_list.contains(cohort) ? params.sex_strat_cat_covars : params.cat_covars,
+            params.sex_strat_cohort_list.contains(cohort) ? params.sex_strat_cont_covars : params.cont_covars)
+        """
+        if [ "${params.GPU}" = "ON" ] && [ "${params.host}" = "LPC" ]; then
+            mpirun -n 8 singularity exec --bind /path/to/data/ --nv \
+            saige-doe-3.sif \
+            /opt/conda/lib/R/bin/Rscript /SAIGE_container/SAIGE-DOE/extdata/step1_fitNULLGLMM.R  \
+            --plinkFile=step1_plink \
+            --phenoFile=${pheno_file} \
+            --phenoCol=${pheno} \
+            ${covariate_args} \
+            --sampleIDColinphenoFile=${params.id_col} \
+            --traitType=binary \
+            --outputPrefix=${pheno} \
+            --nThreads=1 \
+            --IsOverwriteVarianceRatioFile=TRUE > ${pheno}.log
+        elif [ "${params.GPU}"  = "ON" ] &&  [ "${params.host}" = "DNAnexus" ]; then
+            docker run --rm \
+            -v /home/dnanexus/out/out/:/SAIGE_container/data \
+            -v $PWD/${pheno}:/SAIGE_container/output \
+            --gpus device=all \
+            tnnandi/saige-doe:2 \
+            mpirun -n 8 --allow-run-as-root \
+            /opt/conda/lib/R/bin/Rscript /SAIGE_container/SAIGE-DOE/extdata/step1_fitNULLGLMM.R \
+            --plinkFile=step1_plink \
+            --phenoFile=${pheno_file} \
+            --phenoCol=${pheno}\
+            ${covariate_args} \
+            --sampleIDColinphenoFile=${params.id_col} \
+            --traitType=binary \
+            --outputPrefix=${pheno} \
+            --nThreads=1 \
+            --LOCO=FALSE \
+            --IsOverwriteVarianceRatioFile=TRUE > ${pheno}.log
+        elif [ "${params.GPU}" = "OFF" ]; then
+            echo "${cohort}-${pheno}"
+            stdbuf -e0 -o0 Rscript ${params.step1_script} \
+            --plinkFile=step1_plink \
+            --phenoFile=${pheno_file} \
+            --phenoCol=${pheno} \
+            ${covariate_args} \
+            --sampleIDColinphenoFile=${params.id_col} \
+            --traitType=binary \
+            --outputPrefix=${pheno} \
+            --nThreads=29 \
+            --IsOverwriteVarianceRatioFile=TRUE > ${pheno}.log
+        fi
+
+        """
+    stub:
+        """
+        touch ${pheno}.rda
+        touch ${pheno}.varianceRatio.txt
+        touch ${pheno}.log
+        """
+}
+
+
 
 process call_saige_step1_quant {
-    publishDir "${launchDir}/${cohort}/Saige_Step1/"
+    // publishDir "${launchDir}/${cohort}/Saige_Step1/"
     machineType 'n2-standard-16'
     cpus 15
 
@@ -212,8 +297,8 @@ process call_saige_step1_quant {
             params.sex_strat_cohort_list.contains(cohort) ? params.sex_strat_cont_covars : params.cont_covars)
         """
         if [ "${params.GPU}"  = "ON" ]; then
-            mpirun -n 3 singularity exec --bind /project/:/project/,./:/output,/static/ --nv \
-            /path/to/directory/saige-doe-3.sif \
+            mpirun -n 8 singularity exec --bind /path/to/data/ --nv \
+            saige-doe-3.sif \
             /opt/conda/lib/R/bin/Rscript /SAIGE_container/SAIGE-DOE/extdata/step1_fitNULLGLMM.R  \
             --plinkFile=step1_plink \
             --phenoFile=${pheno_file} \
@@ -223,6 +308,7 @@ process call_saige_step1_quant {
             --traitType=quantitative \
             --outputPrefix=${pheno} \
             --nThreads=1 \
+            --invNormalize=TRUE \
             --IsOverwriteVarianceRatioFile=TRUE > ${pheno}.log
         elif [ "${params.GPU}" = "OFF" ]; then
             echo "${cohort}-${pheno}"
@@ -235,6 +321,7 @@ process call_saige_step1_quant {
             --traitType=quantitative \
             --outputPrefix=${pheno} \
             --nThreads=29 \
+            --invNormalize=TRUE \
             --IsOverwriteVarianceRatioFile=TRUE > ${pheno}.log
         fi
 
@@ -247,8 +334,9 @@ process call_saige_step1_quant {
         """
 }
 
+
 process call_saige_step1_bin_with_sparse_GRM {
-    publishDir "${launchDir}/${cohort}/Saige_Step1/"
+    // publishDir "${launchDir}/${cohort}/Saige_Step1/"
     machineType 'n2-standard-4'
     cpus 1
 
@@ -270,7 +358,7 @@ process call_saige_step1_bin_with_sparse_GRM {
          --sparseGRMFile=${sparse_grm} \
          --sparseGRMSampleIDFile=${sparse_grm_samples} \
          --useSparseGRMtoFitNULL=TRUE \
-         --plinkFile=${params.step1_plink_prefix.split('/')[-1]} \
+         --plinkFile=${plink_set[0].toString().replace('.bed', '')} \
          --phenoFile=${pheno_file} \
          --phenoCol=${pheno} \
          ${covariate_args} \
@@ -289,7 +377,7 @@ process call_saige_step1_bin_with_sparse_GRM {
 }
 
 process call_saige_step1_quant_with_sparse_GRM {
-    publishDir "${launchDir}/${cohort}/Saige_Step1/"
+    // publishDir "${launchDir}/${cohort}/Saige_Step1/"
     machineType 'n2-standard-4'
     cpus 1
 
@@ -311,7 +399,7 @@ process call_saige_step1_quant_with_sparse_GRM {
          --sparseGRMFile=${sparse_grm} \
          --sparseGRMSampleIDFile=${sparse_grm_samples} \
          --useSparseGRMtoFitNULL=TRUE \
-         --plinkFile=${params.step1_plink_prefix.split('/')[-1]} \
+         --plinkFile=${plink_set[0].toString().replace('.bed', '')} \
          --phenoFile=${pheno_file} \
          --phenoCol=${pheno} \
          ${covariate_args} \
@@ -404,7 +492,9 @@ workflow SAIGE_STEP1 {
             (step1_quant_output, logs) = call_saige_step1_quant_with_sparse_GRM(step1_quant_input, sparse_grm_input)
         } else {
             (step1_bin_output, logs) = call_saige_step1_bin(step1_bin_input)
+            
             (step1_quant_output, logs) = call_saige_step1_quant(step1_quant_input)
+            
         }
     emit:
         step1_bin_output

@@ -142,7 +142,7 @@ for f in input_files:
         f_no_gz = f.replace('.gz', '')
         f_no_suffix = f_no_gz.replace('.singleAssoc', '').replace('.txt', '')
         f_no_chr = '.'.join(f_no_suffix.split('.')[:-1])
-        f_no_cohort = f_no_chr.replace(cohort, '')
+        f_no_cohort = f_no_chr.replace(f'{cohort}.', '')
         f_pheno = f_no_cohort.split('/')[-1]
     else:
         f_pheno = args.pheno

@@ -9,7 +9,7 @@ workflow BIOFILTER_POSITIONS {
     take:
         data_positions // channel with tuples of (data nickname, position file)
     main:
-
+        
         bf_annot = call_biofilter_positions(
             data_positions,
             params['biofilter_script'],

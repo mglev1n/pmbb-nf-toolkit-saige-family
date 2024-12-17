@@ -91,11 +91,11 @@ print(len(mp.thinned))
 annot_thresh = 5E-8 if np.any(mp.thinned['P'].min() < 5E-8) else np.nanquantile(mp.thinned['P'], 10 / len(mp.thinned))
 
 
-mp.update_plotting_parameters(vertical=True, sig=annot_thresh if not np.any(mp.thinned['P'] < 5E-8) else 5E-8, 
+mp.update_plotting_parameters(vertical=False, sig=annot_thresh if not np.any(mp.thinned['P'] < 5E-8) else 5E-8, 
                               sug=annot_thresh, annot_thresh=annot_thresh, merge_genes=True)
 
 mp.full_plot(save=output_manhattan, rep_boost=False, extra_cols={
-             'beta':'BETA', 'RSID': 'RSID'}, number_cols=['BETA'], keep_chr_pos=False)
+             'beta':'BETA', 'RSID': 'RSID'}, number_cols=['BETA'], keep_chr_pos=False, with_table_bg = False, with_table_grid= False)
 plt.clf()
 
 print(f"Saved Manhattan plot to: {output_manhattan}")

@@ -65,14 +65,14 @@ include {
     merge_and_filter_saige_gene_regions_output
     merge_and_filter_saige_gene_singles_output
     merge_and_filter_saige_gene_singles_phewas_output
-    merge_and_filter_saige_variantphewas_output
+    merge_and_filter_saige_variant_phewas_output
     make_summary_regions_output
     make_summary_singles_output
     } from '../processes/saige_postprocessing.nf'
 
 include {
     make_pheno_covar_summary_plots
-    make_saige_variantphewas_plots
+    make_saige_variant_phewas_plots
     } from '../processes/saige_visualization.nf'
 
 include {
@@ -121,8 +121,8 @@ workflow {
         use_plink_prefix,
         step1_is_gene)
 
-    use_genetic_data_prefix = ftype == "PLINK" ? params.step2_plink_prefix : params.step2_bgen_prefix
-    bgen_sample_file = ftype == "PLINK" ? null : params.samplefile
+    use_genetic_data_prefix = ftype == 'PLINK' ? params.step2_plink_prefix : params.step2_bgen_prefix
+    bgen_sample_file = ftype == 'PLINK' ? null : params.samplefile
     (step2_bin_output, step2_quant_output) = SAIGE_VAR_STEP2(
         step1_bin_output,
         step1_quant_output,
@@ -140,19 +140,19 @@ workflow {
     */
     // Collect saige output into channels for merge
     step2_all_output = step2_bin_output.concat(step2_quant_output)
-    step2_grouped_output = step2_all_output.groupTuple(by: [0,2])
-    merge_singles_script = "${launchDir}/scripts/merge_and_filter_saige_results.py"
-    (singles_merge_output, filtered_singles_output) = merge_and_filter_saige_variantphewas_output(step2_grouped_output, merge_singles_script)
+    step2_grouped_output = step2_all_output.groupTuple(by: [0, 2])
+    merge_singles_script = script_name_dict['merge']
+    (singles_merge_output, filtered_singles_output) = merge_and_filter_saige_variant_phewas_output(step2_grouped_output, merge_singles_script)
 
     // collect a list of just the filtered output files, don't need a wildcards anymore
     summary_singles_input = filtered_singles_output.map { cohort, pheno, filtered -> filtered }.collect()
     singles_summary = make_summary_singles_output(summary_singles_input)
-    
+
     if (params.pheno_descriptions_file) {
-        single_varphewas_plot_script = "${launchDir}/scripts/make_saige_var_phewas_plots.py"
-        singles_plot_input = singles_merge_output.map { cohort,pheno,path -> path }.collect()
-        singles_plots = make_saige_variantphewas_plots(singles_plot_input,single_varphewas_plot_script,params.pheno_descriptions_file) }
+        single_varphewas_plot_script = script_name_dict['v_phewas_plots']
+        singles_plot_input = singles_merge_output.map { cohort, pheno, path -> path }.collect()
+        singles_plots = make_saige_variant_phewas_plots(singles_plot_input, single_varphewas_plot_script, params.pheno_descriptions_file) }
     else {
-        println("No Phenotype Information given. Plots not generated.")
+        println('No Phenotype Information given. Plots not generated.')
     }
 }

@@ -29,7 +29,7 @@ SAIGE ExWAS is a pipeline for doing whole-exome association study of rare varian
 
 * Docker Command: `docker pull pennbiobank/saige:latest`
 
-* Command to Pull from Google Container Registry: `docker pull gcr.io/ritchie-aou-psom-9015/saige:latest`
+* Command to Pull from Google Container Registry: `docker pull gcr.io/verma-pmbb-codeworks-psom-bf87/saige:latest`
 
 * Run Command: `nextflow run workflows/saige_exwas.nf -profile cluster`
 
@@ -276,19 +276,9 @@ SAIGE ExWAS is a pipeline for doing whole-exome association study of rare varian
 ## Post-Processing
 
 
-* `region_col_names` (Type: Map (Dictionary))
-
-    * Default SAIGE Region column names mapped to new ones
-
-* `p_cutoff_summarize` (Type: Float)
-
-    * P-Value Threshold for Summarizing Results at the End, arbitrary p-value threshold for creating a table of results combined with low p-values 
-## Plotting
-
-
 * `gene_location_file ` (Type: File Path)
 
-    * This file is used for getting gene-based coordinates for plotting  
+    * This file is used for getting gene-based coordinates for plotting .
 
     * Corresponding Input File: Gene Location File
 
@@ -309,6 +299,14 @@ SAIGE ExWAS is a pipeline for doing whole-exome association study of rare varian
         GENE1   1   1   90  GS1
         GENE2   2   91  100 GS2
         ```
+
+* `region_col_names` (Type: Map (Dictionary))
+
+    * Default SAIGE Region column names mapped to new ones
+
+* `p_cutoff_summarize` (Type: Float)
+
+    * P-Value Threshold for Summarizing Results at the End, arbitrary p-value threshold for creating a table of results combined with low p-values 
 # Output Files from SAIGE_ExWAS
 
 
@@ -494,14 +492,14 @@ params {
     // DATA FILES
     // ----------
     // all default paths are for PMBB WES
-    data_csv = "/path/to/directory/cleaned_test_pheno_covars.csv"
-    // data_csv = "/path/to/directory/common_phecodes_covariate_ALL.csv"
+    data_csv = "/path/to/data/cleaned_test_pheno_covars.csv"
+    // data_csv = "/path/to/data/common_phecodes_covariate_ALL.csv"
     
     // cohort sets
-    cohort_sets = "/path/to/directory/Exome_sample_table.csv"
+    cohort_sets = "/path/to/data/Exome_sample_table.csv"
     
     // this is for getting gene-based coordinates for plotting
-    gene_location_file = "/path/to/directory/homo_sapiens_111_b38.txt"
+    gene_location_file = "/path/to/data/homo_sapiens_111_b38.txt"
 
     // ID column label
     id_col = "PMBB_ID"
@@ -541,11 +539,11 @@ params {
     // chromosome_list = ["22"]
 
     // binary and quantitative phenotype [lists] or path to file of newline-separated lists
-    // bin_pheno_list = "/path/to/directory/common_phecodes_list.txt"
+    // bin_pheno_list = "/path/to/data/common_phecodes_list.txt"
     bin_pheno_list = ["T2D", "AAA"]
     quant_pheno_list = ["BMI_median", "LDL_median"]
     // sex_specific pheno file - these will be skipped for _ALL cohorts
-    sex_specific_pheno_file = "/path/to/directory/phecode_Sex_specific.txt"
+    sex_specific_pheno_file = "/path/to/data/phecode_Sex_specific.txt"
 
     // categorical and continuous covariates
     cat_covars = ["SEX"]
@@ -572,17 +570,17 @@ params {
     // Config parameters for using precomputed sparse GRM:
     // use_sparse_GRM = true
     // step 1 path should be the small subset of markers used to fit the GRM
-    // step1_plink_prefix = "/path/to/directory/PMBB_exome_random_autosomal_markers"
-    // step1_sparse_grm = "/path/to/directory/PMBB_relatednessCutoff_0.125_2000_randomMarkersUsed.sparseGRM.mtx"
-    // step1_sparse_grm_samples = "/path/to/directory/PMBB_relatednessCutoff_0.125_2000_randomMarkersUsed.sparseGRM.mtx.sampleIDs.txt"
+    // step1_plink_prefix = "/path/to/data/PMBB_exome_random_autosomal_markers"
+    // step1_sparse_grm = "/path/to/data/PMBB_relatednessCutoff_0.125_2000_randomMarkersUsed.sparseGRM.mtx"
+    // step1_sparse_grm_samples = "/path/to/data/PMBB_relatednessCutoff_0.125_2000_randomMarkersUsed.sparseGRM.mtx.sampleIDs.txt"
 
     // Config parameters for using real-time FULL GRM:
     use_sparse_GRM = false
 
     // Genetic Data Inputs:
     // Without a GRM, the exome plink set is used for step 1 because it needs rare variants
-    exome_plink_prefix = "/path/to/directory/PMBB-Release-2020-2.0_genetic_exome_GL_norm"
-    group_file_prefix = "/path/to/directory/subset."
+    exome_plink_prefix = "/path/to/data/PMBB-Release-2020-2.0_genetic_exome_GL_norm"
+    group_file_prefix = "/path/to/data/subset."
     
     // Plink parameters for SAIGE Step 1 Input QC which needs a small set of high-quality variants
     // Current defaults are recommended by GBMI analysis plan
@@ -693,7 +691,7 @@ RUN apt-get update \
     && rm -R NEAT-Plots biofilter.tar.gz
 
 # dev: for SAIGE and SAIGE-dependent packages
-FROM rocker/tidyverse:4.1.3 as dev
+FROM rocker/tidyverse:4.1.3 AS dev
 
 WORKDIR /tmp
 
@@ -717,7 +715,7 @@ RUN apt-get update && \
     && rm -R SAIGE
 
 # main: file image with only necessary packages and scripts
-FROM ubuntu:20.04 as main
+FROM ubuntu:20.04 AS main
 
 WORKDIR /app
 
@@ -747,48 +745,58 @@ USER root
 
 
 ```
-// includeConfig '${launchDir}/configs/saige_exwas.config'
-// includeConfig '${launchDir}/configs/saige_gene_phewas.config'
-includeConfig '${launchDir}/configs/saige_variant_phewas.config'
+// includeConfig 'configs/saige_exwas.config'
+// includeConfig 'configs/saige_gene_phewas.config'
+includeConfig 'configs/saige_variant_phewas.config'
 
 profiles {
 
     non_docker_dev {
-        process.executor = 'local'
+        // run locally without docker
+        process.executor = awsbatch-or-lsf-or-slurm-etc
     }
 
     standard {
-        process.executor = 'local'
-        process.container = Enter .sif file
+        // run locally with docker
+        process.executor = awsbatch-or-lsf-or-slurm-etc
+        process.container = 'karlkeat/saige_exwas'
         docker.enabled = true
     }
 
     cluster {
-        process.executor = 'lsf'
-        process.queue = Enter the Queue name
+        // run on LSF cluster
+        process.executor = awsbatch-or-lsf-or-slurm-etc
+        process.queue = 'epistasis_normal'
         executor {
             queueSize=500
         }
         process.memory = '15GB'
-    	process.container = Enter .sif file
+    	process.container = 'saige.sif'
         singularity.enabled = true
-        singularity.runOptions = '-B /project/,/static/'
+        singularity.runOptions = '-B /root/,/directory/,/names/'
     }
 
     all_of_us {
-        process.executor = 'google-lifesciences'
-        process.memory = '15GB'
-        process.container = Enter .sif file
-        google.zone = "us-central1-a"
-        google.project = 'verma-pmbb-codeworks-psom-bf87' // change to your project id
-        google.lifeSciences.debug = true
+        // CHANGE EVERY TIME! These are specific for each user, see docs
+        google.lifeSciences.serviceAccountEmail = 'pet-XXX-@terra.vpc-sc-XXXXXXXX.iam.gserviceaccount.com' // change to user-specific service email
+        workDir='gs://fc-secure/path/to/workdir' // change to your user-specific working directory in your workspace bucket
+        google.project = 'terra.vpc-sc-XXXXXXXX' // change to your user-specific project ID
+
+        // These should not be changed unless you are an advanced user
+        process.container = 'gcr.io/verma-pmbb-codeworks-psom-bf87/saige:latest' // GCR SAIGE docker container (static)
+
+        // these are AoU, GCR parameters that should NOT be changed
+        process.memory = '15GB' // minimum memory per process (static)
+        process.executor = awsbatch-or-lsf-or-slurm-etc
+        google.zone = "us-central1-a" // AoU uses central time zone (static)
+        google.location = "us-central1"
+        google.lifeSciences.debug = true 
         google.lifeSciences.network = "network"
         google.lifeSciences.subnetwork = "subnetwork"
         google.lifeSciences.usePrivateAddress = false
-        google.lifeSciences.serviceAccountEmail = 'project-service-account@verma-pmbb-codeworks-psom-bf87.iam.gserviceaccount.com' // change to your service email
         google.lifeSciences.copyImage = "gcr.io/google.com/cloudsdktool/cloud-sdk:latest"
         google.enableRequesterPaysBuckets = true
-        workDir='gs://fc-secure-f3e7d01e-18fa-40ba-bb3e-4d7497ba7d5b/work/' // change to your working directory in your workspace bucket
+        // google.lifeSciences.bootDiskSize = "20.GB" // probably don't need this
     }
 }
 

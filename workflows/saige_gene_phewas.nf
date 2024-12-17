@@ -80,23 +80,33 @@ include {
 include {
     paramToList
     get_script_file_names
+    check_input_genetic_data_parameters
 } from '../processes/saige_helpers.nf'
 
 workflow {
     // Get the script name manifest from the helper functions
     script_name_dict = get_script_file_names()
 
-    // For Gene PheWAS, we use the same merged exome files for step 1 and step 2
-    params.step1_plink_prefix = params.exome_plink_prefix
+    cleaned_genetic_data_params = check_input_genetic_data_parameters(params, 'ExWAS')
+    use_step1_prefix = cleaned_genetic_data_params['use_step1_prefix']
+    use_step2_prefix = cleaned_genetic_data_params['use_step2_prefix']
+    step2_is_chr_separated = cleaned_genetic_data_params['is_chr_separated']
 
+    // Define input file paths
     pheno_covar_table = params.data_csv
     cohort_table = params.cohort_sets
-    step1_fam = "${params.step1_plink_prefix}.fam"
-    exome_fam = "${params.exome_plink_prefix}.fam"
+
+    step1_fam = "${use_step1_prefix}.fam"
+
+    if (cleaned_genetic_data_params.is_chr_separated) {
+        step2_fam = "${use_step2_prefix}${params.chromosome_list[0]}.fam"
+    } else {
+        step2_fam = "${use_step2_prefix}.fam"
+    }
 
     // Call Preprocessing sub-workflow (SAIGE_PREPROCESSING)
     workflow_is_phewas = true
-    preprocessing_output = SAIGE_PREPROCESSING(pheno_covar_table, cohort_table, step1_fam, exome_fam, workflow_is_phewas)
+    preprocessing_output = SAIGE_PREPROCESSING(pheno_covar_table, cohort_table, step1_fam, step2_fam, workflow_is_phewas)
     keep_cohort_bin_pheno_combos = preprocessing_output[0]
     keep_cohort_quant_pheno_combos = preprocessing_output[1]
     pheno_table = preprocessing_output[2]
@@ -105,20 +115,19 @@ workflow {
 
     // Call Step 1 sub-workflow (SAIGE_STEP1)
     step1_is_gene = true
-    use_plink_prefix = params.exome_plink_prefix
     (step1_bin_output, step1_quant_output) = SAIGE_STEP1(cohort_sample_lists,
         cohort_pheno_tables,
         keep_cohort_bin_pheno_combos,
         keep_cohort_quant_pheno_combos,
-        use_plink_prefix,
+        use_step1_prefix,
         step1_is_gene)
 
     // Call Step 2 sub-workflow (SAIGE_GENE_STEP2)
-    use_plink_prefix = params.exome_plink_prefix
     (step2_bin_output, step2_quant_output) = SAIGE_GENE_STEP2(
         step1_bin_output,
         step1_quant_output,
-        use_plink_prefix,
+        use_step2_prefix,
+        step2_is_chr_separated,
         workflow_is_phewas)
 
     /*
@@ -158,10 +167,10 @@ workflow {
     // Making Plots
     gene_file = params.gene_location_file
     phenotype_description_file = params.pheno_descriptions_file
-    regions_plot_script = "${launchDir}/scripts/make_saige_gene_burden_phewas_plots_v2.py"
+    regions_plot_script = script_name_dict['gb_phewas_plots']
     regions_plots = make_saige_gene_phewas_regions_plots(regions_merge_output, phenotype_description_file, regions_plot_script)
     // take the 2 input tuples of pngs and csvs, extract csvs, filter on manifest
-    regions_csvs = regions_plots.map{pngs, csvs -> new Tuple(csvs)}.transpose().filter{ it.name =~ /.*manifest.csv/ }.collect()
-    phewas_regions = "phewas_regions"
+    regions_csvs = regions_plots.map { pngs, csvs -> new Tuple(csvs) }.transpose().filter { it.name =~ /.*manifest.csv/ }.collect()
+    phewas_regions = 'phewas_regions'
     regions_manifest = collect_gene_phewas_regions_plots(phewas_regions, regions_csvs)
 }

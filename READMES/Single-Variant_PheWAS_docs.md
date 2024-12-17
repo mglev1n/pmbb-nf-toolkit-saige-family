@@ -29,7 +29,7 @@ Single Variant PheWAS is a pipeline that uses SAIGE to perform single variant as
 
 * Docker Command: `docker pull pennbiobank/saige:latest`
 
-* Command to Pull from Google Container Registry: `docker pull gcr.io/ritchie-aou-psom-9015/saige:latest`
+* Command to Pull from Google Container Registry: `docker pull gcr.io/verma-pmbb-codeworks-psom-bf87/saige:latest`
 
 * Run Command: `nextflow run ./workflows/saige_variant_phewas.nf -profile cluster`
 
@@ -424,34 +424,34 @@ params {
     // gpu paramater either ON or OFF
     GPU = 'OFF'
     
-    data_csv = "/path/to/directory/cleaned_phewas_pheno_covars.csv"
-    cohort_sets = "/path/to/directory/Genotype_sample_table.csv"
+    data_csv = "/path/to/data/cleaned_phewas_pheno_covars.csv"
+    cohort_sets = "/path/to/data/Genotype_sample_table.csv"
 
     // binary and quantitative phenotype lists
-    // bin_pheno_list_file = "/path/to/directory/phecode_list_with_prefix.txt"
-    bin_pheno_list = "/path/to/directory/test_20_phecodes.txt"
-    quant_pheno_list = "/path/to/directory/lab_list.txt"
-    pheno_descriptions_file = "/path/to/directory/phecode_descriptions_categories.csv"
-    sex_specific_pheno_file = "/path/to/directory/phecode_Sex_specific.txt"
+    // bin_pheno_list_file = "/path/to/data/phecode_list_with_prefix.txt"
+    bin_pheno_list = "/path/to/data/test_20_phecodes.txt"
+    quant_pheno_list = "/path/to/data/lab_list.txt"
+    pheno_descriptions_file = "/path/to/data/phecode_descriptions_categories.csv"
+    sex_specific_pheno_file = "/path/to/data/phecode_Sex_specific.txt"
 
     //setting file type for step 2 (PLINK/BGEN)
     // ftype = "PLINK"
     ftype = "BGEN"
 
     // default paths are for PMBB Geno data (PLINK)
-    step1_plink_prefix  = "/path/to/directory/PMBB-Release-2020-2.0_genetic_genotype"
+    step1_plink_prefix  = "/path/to/data/PMBB-Release-2020-2.0_genetic_genotype"
 
     // default paths are for PMBB Geno data (BGEN)
-    step2_bgen_prefix  = "/path/to/directory/PMBB-Release-2020-2.0_genetic_imputed-topmed-r2_10Ksubset_"
-    samplefile = "/path/to/directory/PMBB-Release-2020-2.0_genetic_imputed-topmed-r2_bgen.sample"
-    step2_pgen_prefix = "/path/to/directory/PMBB-Release-2020-2.0_genetic_imputed-topmed-r2_" 
+    step2_bgen_prefix  = "/path/to/data/PMBB-Release-2020-2.0_genetic_imputed-topmed-r2_10Ksubset_"
+    samplefile = "/path/to/data/PMBB-Release-2020-2.0_genetic_imputed-topmed-r2_bgen.sample"
+    step2_pgen_prefix = "/path/to/data/PMBB-Release-2020-2.0_genetic_imputed-topmed-r2_" 
 
     // desired snps to extract for step 2 (tsv 4 columns, one snp per line: chr start stop rsid)
-    snplist = "/path/to/directory/AGMO.tsv"
+    snplist = "/path/to/data/AGMO.tsv"
     // step2_input_prefix = "AGMO" //arbitrary
-    step2_plink_prefix = "/path/to/directory/AGMO"
+    step2_plink_prefix = "/path/to/data/AGMO"
 
-    group_file_prefix = "/path/to/directory/subset."
+    group_file_prefix = "/path/to/data/subset."
 
     info = 0.4
     // categorical and continuous covariates
@@ -516,8 +516,8 @@ params {
     step2_script = "/usr/local/bin/step2_SPAtests.R"
    
     use_sparse_GRM = false
-    // step1_sparse_grm = "/path/to/directory/PMBB_relatednessCutoff_0.125_2000_randomMarkersUsed.sparseGRM.mtx"
-    // step1_sparse_grm_samples = "/path/to/directory/PMBB_relatednessCutoff_0.125_2000_randomMarkersUsed.sparseGRM.mtx.sampleIDs.txt"
+    // step1_sparse_grm = "/path/to/data/PMBB_relatednessCutoff_0.125_2000_randomMarkersUsed.sparseGRM.mtx"
+    // step1_sparse_grm_samples = "/path/to/data/PMBB_relatednessCutoff_0.125_2000_randomMarkersUsed.sparseGRM.mtx.sampleIDs.txt"
    
     // Dictionary (Map) with default SAIGE Region column names mapped to new ones
     region_col_names = [
@@ -607,7 +607,7 @@ RUN apt-get update \
     && rm -R NEAT-Plots biofilter.tar.gz
 
 # dev: for SAIGE and SAIGE-dependent packages
-FROM rocker/tidyverse:4.1.3 as dev
+FROM rocker/tidyverse:4.1.3 AS dev
 
 WORKDIR /tmp
 
@@ -631,7 +631,7 @@ RUN apt-get update && \
     && rm -R SAIGE
 
 # main: file image with only necessary packages and scripts
-FROM ubuntu:20.04 as main
+FROM ubuntu:20.04 AS main
 
 WORKDIR /app
 
@@ -661,48 +661,58 @@ USER root
 
 
 ```
-// includeConfig '${launchDir}/configs/saige_exwas.config'
-// includeConfig '${launchDir}/configs/saige_gene_phewas.config'
-includeConfig '${launchDir}/configs/saige_variant_phewas.config'
+// includeConfig 'configs/saige_exwas.config'
+// includeConfig 'configs/saige_gene_phewas.config'
+includeConfig 'configs/saige_variant_phewas.config'
 
 profiles {
 
     non_docker_dev {
-        process.executor = 'local'
+        // run locally without docker
+        process.executor = awsbatch-or-lsf-or-slurm-etc
     }
 
     standard {
-        process.executor = 'local'
-        process.container = Enter .sif file
+        // run locally with docker
+        process.executor = awsbatch-or-lsf-or-slurm-etc
+        process.container = 'karlkeat/saige_exwas'
         docker.enabled = true
     }
 
     cluster {
-        process.executor = 'lsf'
-        process.queue = Enter the Queue name
+        // run on LSF cluster
+        process.executor = awsbatch-or-lsf-or-slurm-etc
+        process.queue = 'epistasis_normal'
         executor {
             queueSize=500
         }
         process.memory = '15GB'
-    	process.container = Enter .sif file
+    	process.container = 'saige.sif'
         singularity.enabled = true
-        singularity.runOptions = '-B /project/,/static/'
+        singularity.runOptions = '-B /root/,/directory/,/names/'
     }
 
     all_of_us {
-        process.executor = 'google-lifesciences'
-        process.memory = '15GB'
-        process.container = Enter .sif file
-        google.zone = "us-central1-a"
-        google.project = 'verma-pmbb-codeworks-psom-bf87' // change to your project id
-        google.lifeSciences.debug = true
+        // CHANGE EVERY TIME! These are specific for each user, see docs
+        google.lifeSciences.serviceAccountEmail = 'pet-XXX-@terra.vpc-sc-XXXXXXXX.iam.gserviceaccount.com' // change to user-specific service email
+        workDir='gs://fc-secure/path/to/workdir' // change to your user-specific working directory in your workspace bucket
+        google.project = 'terra.vpc-sc-XXXXXXXX' // change to your user-specific project ID
+
+        // These should not be changed unless you are an advanced user
+        process.container = 'gcr.io/verma-pmbb-codeworks-psom-bf87/saige:latest' // GCR SAIGE docker container (static)
+
+        // these are AoU, GCR parameters that should NOT be changed
+        process.memory = '15GB' // minimum memory per process (static)
+        process.executor = awsbatch-or-lsf-or-slurm-etc
+        google.zone = "us-central1-a" // AoU uses central time zone (static)
+        google.location = "us-central1"
+        google.lifeSciences.debug = true 
         google.lifeSciences.network = "network"
         google.lifeSciences.subnetwork = "subnetwork"
         google.lifeSciences.usePrivateAddress = false
-        google.lifeSciences.serviceAccountEmail = 'project-service-account@verma-pmbb-codeworks-psom-bf87.iam.gserviceaccount.com' // change to your service email
         google.lifeSciences.copyImage = "gcr.io/google.com/cloudsdktool/cloud-sdk:latest"
         google.enableRequesterPaysBuckets = true
-        workDir='gs://fc-secure-f3e7d01e-18fa-40ba-bb3e-4d7497ba7d5b/work/' // change to your working directory in your workspace bucket
+        // google.lifeSciences.bootDiskSize = "20.GB" // probably don't need this
     }
 }
 

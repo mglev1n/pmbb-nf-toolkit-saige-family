@@ -20,15 +20,121 @@ Map get_script_file_names() {
     // This method kind of serves as a manifest for all of our scripts rather than completely hard-coding the paths
 
     script_names = [:]
-    script_names['cohort_setup'] = "${projectDir}/../scripts/set_up_cohort_directory.py"
-    script_names['pheno_table'] = "${projectDir}/../scripts/make_pheno_summary_table.py"
-    script_names['pheno_covar_plots'] = "${projectDir}/../scripts/make_pheno_covar_summary_plots.py"
-    script_names['exwas_methods'] = "${projectDir}/../scripts/generate_exwas_methods.py"
-    script_names['exwas_singles_plots'] = "${projectDir}/../scripts/make_saige_exwas_singles_plots.py"
-    script_names['exwas_regions_plots'] = "${projectDir}/../scripts/make_saige_exwas_regions_plots.py"
-    script_names['gwas_plots_with_annot'] = "${projectDir}/../scripts/make_saige_gwas_plots_annotate.py"
-    script_names['gwas_plots'] = "${projectDir}/../scripts/make_saige_gwas_plots.py"
-    script_names['merge'] = "${projectDir}/../scripts/merge_and_filter_saige_results.py"
+    script_names['cohort_setup'] = "${moduleDir}/../scripts/set_up_cohort_directory.py"
+    script_names['pheno_table'] = "${moduleDir}/../scripts/make_pheno_summary_table.py"
+    script_names['pheno_covar_plots'] = "${moduleDir}/../scripts/make_pheno_covar_summary_plots.py"
+
+    script_names['exwas_methods'] = "${moduleDir}/../scripts/generate_exwas_methods.py"
+    script_names['exwas_singles_plots'] = "${moduleDir}/../scripts/make_saige_exwas_singles_plots.py"
+    script_names['exwas_regions_plots'] = "${moduleDir}/../scripts/make_saige_exwas_regions_plots.py"
+
+    script_names['gwas_plots_with_annot'] = "${moduleDir}/../scripts/make_saige_gwas_plots_annotate.py"
+    script_names['gwas_plots'] = "${moduleDir}/../scripts/make_saige_gwas_plots.py"
+
+    script_names['merge'] = "${moduleDir}/../scripts/merge_and_filter_saige_results.py"
+
+    script_names['gb_phewas_plots'] = "${moduleDir}/../scripts/make_saige_gene_burden_phewas_plots_v2.py"
+
+    script_names['v_phewas_plots'] = "${moduleDir}/../scripts/make_saige_var_phewas_plots.py"
 
     return script_names
+}
+
+Map check_input_genetic_data_parameters(params, pipeline) {
+
+    genetic_data_params_clean = [:]
+
+    if (params.use_sparse_GRM) {
+        // Required args when using the sparse GRM are:
+        // step1_plink_prefix, step1_sparse_grm, step1_sparse_grm_samples
+        if (params.step1_plink_prefix == null) {
+            println('You set use_sparse_GRM = true, which means that step1_plink_prefix MUST be set.')
+            System.exit(1)
+        }
+        if (params.step1_sparse_grm == null) {
+            println('You set use_sparse_GRM = true, which means that step1_sparse_grm MUST be set.')
+            System.exit(1)
+        }
+        if (params.step1_sparse_grm_samples == null) {
+            println('You set use_sparse_GRM = true, which means that step1_sparse_grm_samples MUST be set.')
+            System.exit(1)
+        }
+        genetic_data_params_clean.use_step1_prefix = params.step1_plink_prefix
+    } else {
+        if (pipeline == 'GWAS' || pipeline == 'Variant PheWAS') {
+            // Required argument for step 1 without the GRM is step1_plink_prefix
+            if (params.step1_plink_prefix == null) {
+                println("You are running a ${pipeline} without the sparse GRM, which means that step1_plink_prefix MUST be set.")
+                System.exit(1)
+            }
+            genetic_data_params_clean.use_step1_prefix = params.step1_plink_prefix
+        } else {
+            // For ExWAS and Gene PheWAS things are a little more tricky
+            // Given that no sparse GRM is used,
+            // people can provide JUST exome OR (step1_plink_prefix AND step2_plink_prefix)
+            if (params.exome_plink_prefix != null && (params.step1_plink_prefix == null && params.step2_plink_prefix == null)) {
+                genetic_data_params_clean.use_step1_prefix = params.exome_plink_prefix
+            } else if (params.exome_plink_prefix == null && (params.step1_plink_prefix != null && params.step2_plink_prefix != null)) {
+                genetic_data_params_clean.use_step1_prefix = params.step1_plink_prefix
+            } else {
+                println("You are running a(n) ${pipeline} without the sparse GRM, which means that: \
+                 either exome_plink_prefix OR (step1_plink_prefix AND step2_plink_prefix) MUST be set.")
+                System.exit(1)
+            }
+        }
+    }
+
+    // Now deal with step 2
+    if (pipeline == 'GWAS' || pipeline == 'Variant PheWAS') {
+        // Required arguments for step 2 are:
+        // step2_plink_prefix, step2_bgen_prefix, bgen_samplefile
+        // depending on ftype
+        genetic_data_params_clean.is_chr_separated = true
+
+        if (params.ftype == 'PLINK') {
+            if (params.step2_plink_prefix == null) {
+                println("You are running a(n) ${pipeline} with PLINK file type, which means that step2_plink_prefix (chr-separated) MUST be set.")
+                System.exit(1)
+            }
+            genetic_data_params_clean.use_step2_prefix = params.step2_plink_prefix
+        } else if (params.ftype == 'BGEN') {
+            if (params.step2_bgen_prefix == null) {
+                println("You are running a(n) ${pipeline} with BGEN file type, which means that step2_bgen_prefix (chr-separated) MUST be set.")
+                System.exit(1)
+            }
+            if (params.bgen_samplefile == null) {
+                println("You are running a(n) ${pipeline} with BGEN file type, which means that bgen_samplefile MUST be set.")
+                System.exit(1)
+            }
+            genetic_data_params_clean.use_step2_prefix = params.step2_bgen_prefix
+        } else {
+            println("params.ftype must be either 'PLINK' or 'BGEN'")
+            System.exit(1)
+        }
+    } else {
+        // For ExWAS and Gene PheWAS things are a little more tricky
+        // People can provide JUST exome OR (step1_plink_prefix AND step2_plink_prefix)
+        if (!params.use_sparse_GRM && params.exome_plink_prefix != null && (params.step1_plink_prefix == null && params.step2_plink_prefix == null)) {
+            // No Sparse GRM, exome prefix only
+            genetic_data_params_clean.use_step2_prefix = params.exome_plink_prefix
+            genetic_data_params_clean.is_chr_separated = false
+        } else if (!params.use_sparse_GRM && params.exome_plink_prefix == null && (params.step2_plink_prefix != null)) {
+            // No Sparse GRM, step1 and step2 prefix
+            genetic_data_params_clean.use_step2_prefix = params.step2_plink_prefix
+            genetic_data_params_clean.is_chr_separated = true
+        } else if (params.use_sparse_GRM && params.exome_plink_prefix != null && params.step2_plink_prefix == null) {
+            // GRM, exome prefix not step2 prefix
+            genetic_data_params_clean.use_step2_prefix = params.exome_plink_prefix
+            genetic_data_params_clean.is_chr_separated = false
+        } else if (params.use_sparse_GRM && params.exome_plink_prefix == null && params.step2_plink_prefix != null) {
+            // GRM, step2 prefix not exome prefix
+            genetic_data_params_clean.use_step2_prefix = params.step2_plink_prefix
+            genetic_data_params_clean.is_chr_separated = true
+        } else {
+            println("You are running a(n) ${pipeline} which means that: either exome_plink_prefix OR (step1_plink_prefix AND step2_plink_prefix) MUST be set.")
+            System.exit(1)
+        }
+    }
+
+    return genetic_data_params_clean
 }
