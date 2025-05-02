@@ -1,4 +1,3 @@
-
 process merge_and_filter_saige_gene_regions_output {
     publishDir "${launchDir}/${cohort_dir}/Sumstats/"
     machineType 'n2-standard-4'
@@ -17,13 +16,13 @@ process merge_and_filter_saige_gene_regions_output {
         echo "${params.regions_col_names.collect().join('\n')}" > colnames.txt
         cat colnames.txt
         ${params.my_python} ${merge_regions_script} \
-          -p ${pheno} \
-          -c colnames.txt \
-          --cohort ${cohort_dir} \
-          --pvalue ${params.p_cutoff_summarize} \
-          -s ${chr_inputs.join(' ')} \
-          --counts ${pheno_summary_table} \
-          --regions
+            -p ${pheno} \
+            -c colnames.txt \
+            --cohort ${cohort_dir} \
+            --pvalue ${params.p_cutoff_summarize} \
+            -s ${chr_inputs.join(' ')} \
+            --counts ${pheno_summary_table} \
+            --regions
         """
     stub:
         """
@@ -81,7 +80,6 @@ process merge_and_filter_saige_gene_regions_phewas_output {
         tuple val(cohort_dir), val(chr), path("${cohort_dir}.chr${chr}.gene_phewas_regions.filtered.saige.csv")
         tuple val(cohort_dir), val(chr), path("${cohort_dir}.chr${chr}.gene_phewas_cauchy_tests.saige.gz")
         tuple val(cohort_dir), val(chr), path("${cohort_dir}.chr${chr}.gene_phewas_cauchy_tests.filtered.saige.csv")
-    shell:
     shell:
         """
         echo "${params.regions_col_names.collect().join('\n')}" > colnames.txt
@@ -384,3 +382,23 @@ process make_summary_table_with_annot {
         '''
 }
 
+process MERGE_CHUNKS {
+    publishDir "${launchDir}/merged_chunk_files/"
+
+    input:
+        tuple val(cohort_dir), val(pheno), val(full_chromosome), path(file_paths)
+
+    output:
+        tuple val(cohort_dir), val(pheno), val(full_chromosome), path("${cohort_dir}.${pheno}.${full_chromosome}.txt.gz")
+
+    script:
+    """
+    zcat ${file_paths[0]} > ${cohort_dir}.${pheno}.${full_chromosome}.txt
+    for f in ${file_paths}; do
+        if [ "\$f" != "${file_paths[0]}" ]; then
+            zcat \$f | tail -n +2  >> ${cohort_dir}.${pheno}.${full_chromosome}.txt
+        fi
+    done
+    gzip -9 ${cohort_dir}.${pheno}.${full_chromosome}.txt
+    """
+}

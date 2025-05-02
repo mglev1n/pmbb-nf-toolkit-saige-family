@@ -26,12 +26,12 @@ import os
 #     # parser.add_argument('-a', '--annotationList',
 #     #                     help="comma-separated list of grouptest annotation values given to SAIGE")
 #     return parser
-wdir = "/path/to/data/0b146b62b1b8f24fce44a4c8a68279"
+wdir = "/project/pmbb_codeworks/projects/SAIGE_FAMILY_TESTING/SAIGE_GWAS/work/f0/0b146b62b1b8f24fce44a4c8a68279"
 
 cohort = 'AFR_ALL'
 pheno = 'T2D'
 gene_file = "NCBI.gene.loc"
-gene_file = "/path/to/data/NCBI38.gene.loc"
+gene_file = "/project/ssverma_shared/datasets/NCBI_Gene_Loc/NCBI38.gene.loc"
 
 sumstats = "T2D.gwas.saige.gz"
 pheno_table = "pheno_summaries.csv"

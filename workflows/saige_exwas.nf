@@ -1,6 +1,9 @@
 nextflow.enable.dsl = 2
 
 params.ftype = null // This is a GWAS param
+params.host = ""
+params.thin_count = (params.thin_count == "" | params.thin_count == null) ? 150000 : params.thin_count
+params.LOCO = (params.exome_plink_prefix == null) ? "TRUE" : "FALSE"
 
 log.info """\
     NEXTFLOW - DSL2 - SAIGE ExWAS - P I P E L I N E
@@ -92,6 +95,7 @@ workflow {
     // Get the script name manifest from the helper functions
     script_name_dict = get_script_file_names()
 
+    // Genetic data input file requirements are checked using this helper function:
     cleaned_genetic_data_params = check_input_genetic_data_parameters(params, 'ExWAS')
     use_step1_prefix = cleaned_genetic_data_params['use_step1_prefix']
     use_step2_prefix = cleaned_genetic_data_params['use_step2_prefix']
@@ -114,16 +118,18 @@ workflow {
     preprocessing_output = SAIGE_PREPROCESSING(pheno_covar_table, cohort_table, step1_fam, step2_fam, workflow_is_phewas)
     keep_cohort_bin_pheno_combos = preprocessing_output[0]
     keep_cohort_quant_pheno_combos = preprocessing_output[1]
-    pheno_table = preprocessing_output[2]
-    cohort_sample_lists = preprocessing_output[3]
-    cohort_pheno_tables = preprocessing_output[4]
+    keep_cohort_survival_pheno_combos = preprocessing_output[2]
+    pheno_table = preprocessing_output[3]
+    cohort_sample_lists = preprocessing_output[4]
+    cohort_pheno_tables = preprocessing_output[5]
 
     // Call Step 1 sub-workflow (SAIGE_STEP1)
     step1_is_gene = true
-    (step1_bin_output, step1_quant_output) = SAIGE_STEP1(cohort_sample_lists,
+    (step1_bin_output, step1_quant_output,step1_surival_output) = SAIGE_STEP1(cohort_sample_lists,
         cohort_pheno_tables,
         keep_cohort_bin_pheno_combos,
         keep_cohort_quant_pheno_combos,
+        keep_cohort_survival_pheno_combos,
         use_step1_prefix,
         step1_is_gene)
 
@@ -135,7 +141,7 @@ workflow {
         step2_is_chr_separated,
         workflow_is_phewas)
 
-    /*
+    /* 
     Step 2 -> Merged Sumstats Channel Emission Tuples
     Step 2 Out:  cohort, phenotype, chromosome, regions, singles
     Group By:    cohort, phenotype

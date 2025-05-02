@@ -29,7 +29,7 @@ Map get_script_file_names() {
     script_names['exwas_regions_plots'] = "${moduleDir}/../scripts/make_saige_exwas_regions_plots.py"
 
     script_names['gwas_plots_with_annot'] = "${moduleDir}/../scripts/make_saige_gwas_plots_annotate.py"
-    script_names['gwas_plots'] = "${moduleDir}/../scripts/make_saige_gwas_plots.py"
+    script_names['gwas_plots'] = "${moduleDir}/../scripts/make_saige_gwas_singles_plots.py"
 
     script_names['merge'] = "${moduleDir}/../scripts/merge_and_filter_saige_results.py"
 
@@ -138,3 +138,34 @@ Map check_input_genetic_data_parameters(params, pipeline) {
 
     return genetic_data_params_clean
 }
+
+def getGpuMachineTypeChannel(numVariants, numParticipants) {
+    requiredMemoryGB = (4 * numVariants * numParticipants) / 1e9
+    Map gpuMemoryToMachineType = [
+    40: 'a2-highgpu-1g',    // 1 GPU, 40GB total GPU memory
+    80: 'a2-highgpu-2g',    // 2 GPUs, 80GB total GPU memory
+    160: 'a2-highgpu-4g',   // 4 GPUs, 160GB total GPU memory
+    320: 'a2-highgpu-8g',   // 8 GPUs, 320GB total GPU memory
+    640: 'a2-megagpu-16g'   // 16 GPUs, 640GB total GPU memory
+    ]
+    // Sorted list of memory options
+    def memoryOptions = gpuMemoryToMachineType.keySet().sort()
+    // Find the smallest option that meets or exceeds the requirement
+    def selectedMemory = null
+    for (memory in memoryOptions) {
+        if (memory >= requiredMemoryGB) {
+            selectedMemory = memory
+            break
+        }
+    }   
+    // If no option is large enough, print warning and exit
+    if (selectedMemory == null) {
+        def maxAvailable = memoryOptions.isEmpty() ? 0 : memoryOptions[-1]
+        log.warn "ERROR: Required GPU memory (${requiredMemoryGB}GB) exceeds maximum available (${maxAvailable}GB)"
+        error "Workflow aborted due to insufficient GPU memory"
+    }
+    // Grab machine type and return as a channel
+    def machineType = gpuMemoryToMachineType[selectedMemory]
+    return machineType
+}
+

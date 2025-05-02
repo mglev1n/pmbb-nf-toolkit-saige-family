@@ -3,6 +3,9 @@ nextflow.enable.dsl = 2
 MIN_BIN_CASES = 50
 MIN_QUANT_N = 500
 
+params.host = ""
+params.thin_count = (params.thin_count == "" | params.thin_count == null) ? 150000 : params.thin_count
+
 log.info """\
     NEXTFLOW - DSL2 - SAIGE ExWAS - P I P E L I N E
     ==================================================
@@ -109,9 +112,10 @@ workflow {
     preprocessing_output = SAIGE_PREPROCESSING(pheno_covar_table, cohort_table, step1_fam, step2_fam, workflow_is_phewas)
     keep_cohort_bin_pheno_combos = preprocessing_output[0]
     keep_cohort_quant_pheno_combos = preprocessing_output[1]
-    pheno_table = preprocessing_output[2]
-    cohort_sample_lists = preprocessing_output[3]
-    cohort_pheno_tables = preprocessing_output[4]
+    keep_cohort_survival_pheno_combos = preprocessing_output[2]
+    pheno_table = preprocessing_output[3]
+    cohort_sample_lists = preprocessing_output[4]
+    cohort_pheno_tables = preprocessing_output[5]
 
     // Call Step 1 sub-workflow (SAIGE_STEP1)
     step1_is_gene = true
@@ -119,6 +123,7 @@ workflow {
         cohort_pheno_tables,
         keep_cohort_bin_pheno_combos,
         keep_cohort_quant_pheno_combos,
+        keep_cohort_survival_pheno_combos,
         use_step1_prefix,
         step1_is_gene)
 

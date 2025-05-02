@@ -10,6 +10,10 @@ SAIGE ExWAS is a pipeline for doing whole-exome association study of rare varian
 [Paper Link for Reference](https://www.nature.com/articles/s41588-022-01178-w)
 
 [Tool Documentation Link](https://saigegit.github.io/SAIGE-doc/)
+
+[Example Module Config File](https://github.com/PMBB-Informatics-and-Genomics/pmbb-geno-pheno-toolkit/tree/main/Example_Configs/saige_exwas.config)
+
+[Example nextflow.config File](https://github.com/PMBB-Informatics-and-Genomics/pmbb-geno-pheno-toolkit/tree/main/Example_Configs/nextflow.config)
 ## Cloning Github Repository:
 
 
@@ -62,10 +66,6 @@ SAIGE ExWAS is a pipeline for doing whole-exome association study of rare varian
 * `bin_pheno_list` (Type: List)
 
     * Binary phenotype list
-
-* `quant_pheno_list` (Type: List)
-
-    * Quantitative phenotype list
 ## Pre-Processing
 
 
@@ -131,10 +131,6 @@ SAIGE ExWAS is a pipeline for doing whole-exome association study of rare varian
         1a8,0.0162938047248591,0,0.943836210685299,0,0,0,0,0,0,0,0,0,1,1
         1a9,0.147167262428064,0,0.821221195098089,1,0,0,0,0,0,0,0,0,1,0
         ```
-
-* `id_col ` (Type: String)
-
-    * ID column label
 ## QC Options
 
 
@@ -189,10 +185,6 @@ SAIGE ExWAS is a pipeline for doing whole-exome association study of rare varian
 
     * Plink parameters for SAIGE Step 1 Input QC which needs a small set of high-quality variants, genotype rate  filters out all variants with missing call rates exceeding the provided value 
 
-* `step1_script  ` (Type: File Path)
-
-    * Fits the null logistic/linear mixed model using a full or a sparse genetic relationship matrix (GRM). The GRM estimate the genetic relationship between two individuals over a certain number of SNPs
-
 * `exome_plink_prefix` (Type: Plink Fileset Prefix)
 
     * Exome plink input files 
@@ -221,7 +213,7 @@ SAIGE ExWAS is a pipeline for doing whole-exome association study of rare varian
 
     * Corresponding Input File: SAIGE Group Annotation Files
 
-        * text files formatted like this example from the SAIGE github: 
+        * text files formatted like this example from the SAIGE github under extdata/input/group_new_chrposa1a2.txt. They should be chromosome-separated, ending with “1.txt”…”22.txt”. The pipeline will fill in “chr.txt” to the end of the prefix you provide
 
         * Type: Data Table
 
@@ -239,14 +231,6 @@ SAIGE ExWAS is a pipeline for doing whole-exome association study of rare varian
         ENSG00000000460 var     1_169795119_C_T 1_169795121_G_C 1_169795123_C_G
         ENSG00000000460 anno    other_missense  other_missense  other_missense
         ```
-
-* `hwe` (Type: Float)
-
-    * Plink parameters for SAIGE Step 1 Input QC which needs a small set of high-quality variants
-
-* `maf ` (Type: Float)
-
-    * Plink parameters for SAIGE Step 1 Input QC which needs a small set of high-quality variants
 ## SAIGE Step 2
 
 
@@ -257,22 +241,6 @@ SAIGE ExWAS is a pipeline for doing whole-exome association study of rare varian
 * `firth_cutoff` (Type: Float)
 
     * P-value ()
-
-* `use_firth` (Type: Bool (R: TRUE or FALSE))
-
-    * True to use firth logistic regression
-
-* `grouptest_annotation` (Type: String)
-
-    * Annotations for variants
-
-* `grouptest_maf` (Type: String)
-
-    * MAF cutoffs
-
-* `LOCO` (Type: Bool (R: TRUE or FALSE))
-
-    * Usually a GWAS method 
 ## Post-Processing
 
 
@@ -303,10 +271,6 @@ SAIGE ExWAS is a pipeline for doing whole-exome association study of rare varian
 * `region_col_names` (Type: Map (Dictionary))
 
     * Default SAIGE Region column names mapped to new ones
-
-* `p_cutoff_summarize` (Type: Float)
-
-    * P-Value Threshold for Summarizing Results at the End, arbitrary p-value threshold for creating a table of results combined with low p-values 
 # Output Files from SAIGE_ExWAS
 
 
@@ -483,351 +447,145 @@ SAIGE ExWAS is a pipeline for doing whole-exome association study of rare varian
     EUR_F,BMI_median,ENSG00000003393,pLoF,0.01,1.12067607254946e-06,1.12067607254946e-06,1.12067607254946e-06,0.456714431175153,0.0937971711429878,9.0,,,0.0,8.0
     EUR_M,LDL_median,ENSG00000006530,pLoF,0.01,8.20696106989754e-06,8.20696106989754e-06,8.20696106989754e-06,3.23068908720413,0.724416423633968,3.0,,,0.0,3.0
     ```
-# Example Config File Contents
-
-
-```
-
-params {
-    // DATA FILES
-    // ----------
-    // all default paths are for PMBB WES
-    data_csv = "/path/to/data/cleaned_test_pheno_covars.csv"
-    // data_csv = "/path/to/data/common_phecodes_covariate_ALL.csv"
-    
-    // cohort sets
-    cohort_sets = "/path/to/data/Exome_sample_table.csv"
-    
-    // this is for getting gene-based coordinates for plotting
-    gene_location_file = "/path/to/data/homo_sapiens_111_b38.txt"
-
-    // ID column label
-    id_col = "PMBB_ID"
-    
-    // Full list of cohorts (usually ancestry-stratified and/or sex-stratified)
-    cohort_list = [
-        "PMBB_AMR_ALL", "PMBB_AMR_F","PMBB_AMR_M",
-        "PMBB_AFR_ALL", "PMBB_AFR_F", "PMBB_AFR_M",
-        "PMBB_EAS_ALL", "PMBB_EAS_F", "PMBB_EAS_M",
-        "PMBB_EUR_ALL", "PMBB_EUR_F", "PMBB_EUR_M"
-        ]
-        
-    // smaller list of cohorts for testing
-    // cohort_list = [
-    //     "PMBB_AMR_ALL", "PMBB_AMR_F","PMBB_AMR_M",
-    //     "PMBB_EAS_ALL", "PMBB_EAS_F", "PMBB_EAS_M"
-    //    ]
-    
-    // subset of cohorts that are female- or male-only which should exclude sex-based covariates
-    sex_strat_cohort_list = [
-        "PMBB_AMR_F", "PMBB_AMR_M",
-        "PMBB_AFR_F", "PMBB_AFR_M",
-        "PMBB_EAS_F", "PMBB_EAS_M",
-        "PMBB_EUR_F", "PMBB_EUR_M",
-        ]
-
-    // smaller list of sex stratified for testing
-    // sex_strat_cohort_list = [
-    //     "PMBB_AMR_F","PMBB_AMR_M",
-    //     "PMBB_EAS_F", "PMBB_EAS_M",
-    //    ]
-    
-    // Full list of chromosomes
-    chromosome_list = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22"]
-    
-    // Small list of chormosomes for testing
-    // chromosome_list = ["22"]
-
-    // binary and quantitative phenotype [lists] or path to file of newline-separated lists
-    // bin_pheno_list = "/path/to/data/common_phecodes_list.txt"
-    bin_pheno_list = ["T2D", "AAA"]
-    quant_pheno_list = ["BMI_median", "LDL_median"]
-    // sex_specific pheno file - these will be skipped for _ALL cohorts
-    sex_specific_pheno_file = "/path/to/data/phecode_Sex_specific.txt"
-
-    // categorical and continuous covariates
-    cat_covars = ["SEX"]
-    cont_covars = ["DATA_FREEZE_AGE", "Exome_PC1", "Exome_PC2", "Exome_PC3", "Exome_PC4"]
-    sex_strat_cat_covars = []
-    sex_strat_cont_covars = cont_covars
-
-    // NextFlow, Docker, and Singularity OPTIONS
-    // ------------------------------------------
-    // default assumes use of the docker container
-    my_python = "/opt/conda/bin/python"
-
-    // default paths assume use of the docker container
-    step1_script = "/usr/local/bin/step1_fitNULLGLMM.R"
-    step2_script = "/usr/local/bin/step2_SPAtests.R"
-
-    // gpu paramater either ON or OFF, need to set config to -c nextflow_gpu.config
-    GPU = 'OFF'
-    
-    // Minimum numbers for filtering cohort-phenotype combinations
-    min_bin_cases = 100
-    min_quant_n = 1000
-
-    // Config parameters for using precomputed sparse GRM:
-    // use_sparse_GRM = true
-    // step 1 path should be the small subset of markers used to fit the GRM
-    // step1_plink_prefix = "/path/to/data/PMBB_exome_random_autosomal_markers"
-    // step1_sparse_grm = "/path/to/data/PMBB_relatednessCutoff_0.125_2000_randomMarkersUsed.sparseGRM.mtx"
-    // step1_sparse_grm_samples = "/path/to/data/PMBB_relatednessCutoff_0.125_2000_randomMarkersUsed.sparseGRM.mtx.sampleIDs.txt"
-
-    // Config parameters for using real-time FULL GRM:
-    use_sparse_GRM = false
-
-    // Genetic Data Inputs:
-    // Without a GRM, the exome plink set is used for step 1 because it needs rare variants
-    exome_plink_prefix = "/path/to/data/PMBB-Release-2020-2.0_genetic_exome_GL_norm"
-    group_file_prefix = "/path/to/data/subset."
-    
-    // Plink parameters for SAIGE Step 1 Input QC which needs a small set of high-quality variants
-    // Current defaults are recommended by GBMI analysis plan
-    maf = 0.01
-    geno = 0.01
-    hwe = 1E-6
-    
-    // SAIGE-GENE Step 2 Parameters
-    // Current defaults are recommended by BRAVA analysis plan
-    min_maf = 0
-    min_mac = 0.5
-    grouptest_maf = "0.0001,0.001,0.01"
-    grouptest_annotation = "pLoF,damaging_missense,other_missense,synonymous,pLoF;damaging_missense,pLoF;damaging_missense;other_missense;synonymous"
-    use_firth = "TRUE"
-    firth_cutoff = 0.1
-    LOCO = "FALSE"
-
-    // P-Value Threshold for Summarizing Results at the End
-    p_cutoff_summarize = 0.00001
-
-    // Dictionary (Map) with default SAIGE Region column names mapped to new ones
-    regions_col_names = [
-        Region: 'gene',
-        Group: 'annot',
-        max_MAF: 'max_maf',
-        Pvalue: 'p_value',
-        Pvalue_Burden: 'p_value_burden',
-        BETA_Burden: 'beta_burden',
-        SE_Burden: 'se_burden',
-        Pvalue_SKAT: 'p_value_skat',
-        MAC: 'mac',
-        MAC_case: 'mac_case',
-        MAC_control: 'mac_control',
-        Number_rare: 'rare_var_count',
-        Number_ultra_rare: 'ultrarare_var_count'
-    ]
-
-    // Dictionary (Map) with default SAIGE SingleAssoc column names mapped to new ones
-    singles_col_names = [
-        CHR: 'chromosome',
-        POS: 'base_pair_location',
-        MarkerID: 'variant_id',
-        Allele1: 'other_allele',
-        Allele2: 'effect_allele',
-        AC_Allele2: 'effect_allele_count',
-        AF_Allele2: 'effect_allele_frequency',
-        MissingRate: 'missing_rate',
-        BETA: 'beta',
-        SE: 'standard_error',
-        Tstat: 't_statistic',
-        var: 'variance',
-        'p.value': 'p_value',
-        'p.value.NA': 'p_value_na',
-        'Is.SPA': 'is_spa_test',
-        AF_case: 'allele_freq_case',
-        AF_ctrl: 'allele_freq_ctrl',
-        N_case: 'n_case',
-        N_ctrl: 'n_ctrl',
-        N_case_hom: 'n_case_hom',
-        N_case_het: 'n_case_het',
-        N_ctrl_hom: 'n_ctrl_hom',
-        N_ctrl_het: 'n_ctrl_het',
-        N: 'n'
-    ]
-
-}
-
-```
 # Current Dockerfile for the Container/Image
 
 
 ```docker
 # build: for python packages, plink, biofilter, and NEAT plots
-FROM continuumio/miniconda3 as build
-
+FROM continuumio/miniconda3 AS build
 WORKDIR /app
 
 # biofilter version argument
 ARG BIOFILTER_VERSION=2.4.3
 
-RUN apt-get update \
-    # install tools needed to install plink, biofilter, and NEAT plots
-    && apt-get install -y --no-install-recommends git wget unzip libtiff5-dev \
+# Combine apt operations and add retries for robustness
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        git \
+        wget \
+        unzip \
+        libtiff5-dev \
+        libtiff-dev \
+        ca-certificates \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* \
-    # install python packages needed for pipeline
-    && conda install -y -n base -c conda-forge -c bioconda adjustText apsw sqlite dominate bgenix scipy pandas seaborn matplotlib conda-build numpy \
-    && conda clean --all --yes \
-    # install plink
-    && wget https://s3.amazonaws.com/plink2-assets/alpha5/plink2_linux_x86_64_20240526.zip \
-    && wget https://s3.amazonaws.com/plink1-assets/plink_linux_x86_64_20231211.zip \
+    # Configure wget to retry downloads
+    && echo "retry_connrefused = on" >> /etc/wgetrc \
+    && echo "tries = 5" >> /etc/wgetrc
+
+# Install conda packages with explicit channels and retries
+RUN conda config --set remote_read_timeout_secs 600 \
+    && conda install -y -n base \
+        -c conda-forge \
+        -c bioconda \
+        adjustText \
+        apsw \
+        sqlite \
+        dominate \
+        bgenix \
+        scipy \
+        pandas \
+        seaborn \
+        matplotlib \
+        conda-build \
+        numpy \
+        libtiff \
+    && conda clean --all --yes
+
+# Download and install tools with retries
+RUN wget --tries=5 --retry-connrefused https://s3.amazonaws.com/plink2-assets/alpha5/plink2_linux_x86_64_20240526.zip \
+    && wget --tries=5 --retry-connrefused https://s3.amazonaws.com/plink1-assets/plink_linux_x86_64_20231211.zip \
     && unzip plink2_linux_x86_64_20240526.zip \
     && unzip plink_linux_x86_64_20231211.zip \
-    && rm -rf plink2_linux_x86_64_20240526.zip plink_linux_x86_64_20231211.zip \
-    # symlink libtiff.so.6 to libtiff.so.5 to overcome error
-    && ln -s /opt/conda/lib/libtiff.so.6 /opt/conda/lib/libtiff.so.5 \
-    # download NEAT-plots
-    && git clone https://github.com/PMBB-Informatics-and-Genomics/NEAT-Plots.git \
-    # move manhattan plot scripts to /app
+    && rm -rf plink2_linux_x86_64_20240526.zip plink_linux_x86_64_20231211.zip
+
+# Handle libtiff symlink
+RUN find /opt/conda -name "libtiff.so.*" -type f | sort -V | tail -n 1 | xargs -I {} ln -sf {} /opt/conda/lib/libtiff.so.5 || true
+
+# Install NEAT-plots
+RUN git clone --depth 1 https://github.com/PMBB-Informatics-and-Genomics/NEAT-Plots.git \
     && mv NEAT-Plots/manhattan-plot/ /app/ \
-    # install biofilter
-    && wget https://github.com/RitchieLab/biofilter/releases/download/Biofilter-${BIOFILTER_VERSION}/biofilter-${BIOFILTER_VERSION}.tar.gz -O biofilter.tar.gz \
+    && rm -rf NEAT-Plots
+
+# Install biofilter with retries
+RUN wget --tries=5 --retry-connrefused \
+    https://github.com/RitchieLab/biofilter/releases/download/Biofilter-${BIOFILTER_VERSION}/biofilter-${BIOFILTER_VERSION}.tar.gz \
+    -O biofilter.tar.gz \
     && tar -zxvf biofilter.tar.gz --strip-components=1 -C /app/ \
     && /opt/conda/bin/python setup.py install \
-    # make biofilter script executable
     && chmod a+rx /app/biofilter.py \
-    # remove NEAT-plots directory and biofilter executable
-    && rm -R NEAT-Plots biofilter.tar.gz
+    && rm -rf biofilter.tar.gz
 
 # dev: for SAIGE and SAIGE-dependent packages
 FROM rocker/tidyverse:4.1.3 AS dev
-
 WORKDIR /tmp
 
+# Install system dependencies with retry mechanism
 RUN apt-get update && \
-    # install tools needed to install SAIGE
-    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends build-essential cmake libopenblas-base python3-pip r-cran-devtools git \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+        build-essential \
+        cmake \
+        libopenblas-base \
+        python3-pip \
+        r-cran-devtools \
+        git \
+        ca-certificates \
+        libxml2-dev \
+        libssl-dev \
+        libcurl4-openssl-dev \
+        libgfortran5 \
+        libgomp1 \
+        liblapack-dev \
+        libopenblas-dev \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* \
-    && pip3 install cget \
-    # download SAIGE
-    && git clone https://github.com/saigegit/SAIGE.git \
-    # install SAIGE-dependent R packages
-    && Rscript SAIGE/extdata/install_packages.R \
-    # install SAIGE
-    && R CMD INSTALL SAIGE \
-    # move SAIGE scripts into $PATH
-    && mv SAIGE/extdata/step1_fitNULLGLMM.R SAIGE/extdata/step2_SPAtests.R SAIGE/extdata/step3_LDmat.R SAIGE/extdata/createSparseGRM.R /usr/local/bin/ \
-    # make SAIGE scripts executable
-    && chmod -R a+x /usr/local/bin/ \
-    # remove SAIGE directory
-    && rm -R SAIGE
+    && pip3 install --retries 5 cget
 
-# main: file image with only necessary packages and scripts
+# Install R dependencies first
+RUN R -e "install.packages(c('Rcpp', 'RcppArmadillo'), repos='https://cloud.r-project.org', dependencies=TRUE)" && \
+    R -e "install.packages(c('devtools', 'Matrix', 'data.table', 'SPAtest', 'roxygen2', 'rversions'), repos='https://cloud.r-project.org', dependencies=TRUE)" && \
+    R -e "withr::with_envvar(c(R_REMOTES_NO_ERRORS_FROM_WARNINGS='true'), devtools::install_github('leeshawn/MetaSKAT'))" && \
+    R -e "withr::with_envvar(c(R_REMOTES_NO_ERRORS_FROM_WARNINGS='true'), devtools::install_github('cysouw/qlcMatrix'))"
+
+# Install SAIGE with improved error handling
+RUN git clone --depth 1 https://github.com/saigegit/SAIGE.git && \
+    cd SAIGE && \
+    R -e "withr::with_envvar(c(R_REMOTES_NO_ERRORS_FROM_WARNINGS='true'), devtools::install_deps('.'))" && \
+    R CMD INSTALL . && \
+    cd .. && \
+    mv SAIGE/extdata/step1_fitNULLGLMM.R \
+       SAIGE/extdata/step2_SPAtests.R \
+       SAIGE/extdata/step3_LDmat.R \
+       SAIGE/extdata/createSparseGRM.R \
+       /usr/local/bin/ && \
+    chmod -R a+x /usr/local/bin/ && \
+    rm -R SAIGE
+
+# main: final image with only necessary packages and scripts
 FROM ubuntu:20.04 AS main
-
 WORKDIR /app
 
-# copy conda packages and installed scripts to main image
+# Copy files from previous stages
 COPY --from=dev /tmp/ /app/
 COPY --from=dev /usr/local/ /usr/local/
 COPY --from=build /opt/conda/ /opt/conda/
 COPY --from=build /app/ /app/
 
-RUN apt-get update \
-    # install R into Ubuntu base image
-    && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends r-base \
+# Install R and required system libraries
+RUN apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+        r-base \
+        ca-certificates \
+        libtiff5-dev \
+        libgomp1 \
+        libopenblas-base \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* \
-    # install NEAT-plots manhattan plotting python packages
     && /opt/conda/bin/conda develop /app/manhattan-plot/ \
-    # move plink executables into $PATH
     && mv plink2 plink /usr/bin
 
-# Force step_2 to use 1 single thread. More threads are ineffective
+# Force step_2 to use 1 single thread
 ENV OMP_NUM_THREADS=1
 
 USER root
-
-```
-# Current `nextflow.config` contents
-
-
-```
-//includeConfig 'configs/saige_exwas.config'
-//includeConfig 'configs/saige_gene_phewas.config'
-//includeConfig 'configs/saige_variant_phewas.config'
-
-profiles {
-    non_docker_dev {
-        // run locally without docker
-        process.executor = awsbatch-or-lsf-or-slurm-etc
-    }
-
-    standard {
-        // run locally with docker
-        process.executor = awsbatch-or-lsf-or-slurm-etc
-        process.container = 'pennbiobank/saige:latest'
-        docker.enabled = true
-    }
-
-    cluster {
-        // run on LSF cluster
-        process.executor = awsbatch-or-lsf-or-slurm-etc
-        process.queue = 'epistasis_normal'
-        executor {
-            queueSize=500
-        }
-        process.memory = '15GB'
-    	process.container = 'saige.sif'
-        singularity.enabled = true
-        singularity.runOptions = '-B /root/,/directory/,/names/'
-    }
-
-    all_of_us {
-        // CHANGE EVERY TIME! These are specific for each user, see docs
-        google.lifeSciences.serviceAccountEmail = service@email.gservicaaccount.com
-        workDir = /path/to/workdir/ // can be gs://
-        google.project = terra project id
-
-        // These should not be changed unless you are an advanced user
-        process.container = 'gcr.io/verma-pmbb-codeworks-psom-bf87/saige:latest' // GCR SAIGE docker container (static)
-
-        // these are AoU, GCR parameters that should NOT be changed
-        process.memory = '15GB' // minimum memory per process (static)
-        process.executor = awsbatch-or-lsf-or-slurm-etc
-        google.zone = "us-central1-a" // AoU uses central time zone (static)
-        google.location = "us-central1"
-        google.lifeSciences.debug = true 
-        google.lifeSciences.network = "network"
-        google.lifeSciences.subnetwork = "subnetwork"
-        google.lifeSciences.usePrivateAddress = false
-        google.lifeSciences.copyImage = "gcr.io/google.com/cloudsdktool/cloud-sdk:alpine"
-        google.enableRequesterPaysBuckets = true
-        // google.lifeSciences.bootDiskSize = "20.GB" // probably don't need this
-    }
-    dnanexus{
-        //This is a profile for running on a single machine on dnanexus
-        process {
-            container = 'pennbiobank/saige:latest'
-            executor = 'local'
-            memory = '15GB'
-        }
-        docker {
-            enabled = true
-        }
-        process{
-            withName: 'call_saige_step1_bin' {
-            container = '/tnnandi/saige-doe:2'
-            }
-        }
-        process{
-            withName: 'call_saige_step1_quant' {
-            container = '/tnnandi/saige-doe:2'
-            }
-        }
-    }
-}
-
-params {
-    skip_postprocessing_errors = false
-}
-
-process {
-    withLabel: safe_to_skip {
-        errorStrategy=params.skip_postprocessing_errors ? 'ignore' : 'terminate'
-    }
-}
-
 ```

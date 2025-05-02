@@ -8,6 +8,7 @@ def make_arg_parser():
     # Add non-optional list arguments for phenotypes
     parser.add_argument('-b', '--binPhenotypes', nargs='*', required=False, help='List of phenotypes')
     parser.add_argument('-q', '--quantPhenotypes', nargs='*', required=False, help='List of phenotypes')
+    parser.add_argument('-t', '--survivalPhenotypes', nargs='*', required=False, help='List of phenotypes')
     
     # Add a non-optional list argument for cohorts
     parser.add_argument('-c', '--cohorts', nargs='+', required=True, help='List of cohorts')
@@ -32,6 +33,7 @@ args = make_arg_parser().parse_args()
 cohorts = args.cohorts
 bin_phenos = args.binPhenotypes
 quant_phenos = args.quantPhenotypes
+survival_phenos = args.survivalPhenotypes
 output_dir = args.outDir
 id_col = args.id
 step1_fam = args.step1Fam
@@ -42,7 +44,13 @@ all_phenos = [p for p in bin_phenos]
 all_phenos.extend(quant_phenos)
 
 if len(all_phenos) == 0:
-    raise Exception("No binary or quantitative phenotypes indicated")
+    print("No binary or quantitative phenotypes indicated.PLEASE MAKE SURE THAT YOU INTEND TO RUN THIS TYPE  OF ANALYSIS (time-to-event)") #checkpoint 1 to check for binary and quant phenotypes
+
+all_phenos.extend(survival_phenos)
+
+if len(all_phenos) == 0:
+    raise Exception("No phenotypes (binary,quantitiative,or survival) indicated")  #checkpoint 2 to check for ANY phenotypes
+
 
 print(step1_fam)
 import os
@@ -86,6 +94,17 @@ for c in cohorts:
         quant_pheno_info = quant_pheno_info.reset_index()
         quant_pheno_info['COHORT'] = c
         pheno_info.append(quant_pheno_info)
+
+    if len(survival_phenos) > 0:
+        survival_pheno_info = pheno_covars.loc[keep_samples, survival_phenos].apply(lambda x: x.value_counts(), result_type='expand').transpose().rename(columns={0: 'Controls', 1: 'Cases'})
+        survival_pheno_info['N'] = pheno_covars.loc[keep_samples, survival_phenos].count()
+        survival_pheno_info['Prevalence'] = pheno_covars.loc[keep_samples, survival_phenos].mean()
+        survival_pheno_info.index.name = 'PHENO'
+        survival_pheno_info = survival_pheno_info.reset_index()
+        survival_pheno_info['COHORT'] = c
+        pheno_info.append(survival_pheno_info)
+    
+
 
 pheno_info = pd.concat(pheno_info).reset_index(drop=True)
 col_order = ['COHORT', 'PHENO', 'N']

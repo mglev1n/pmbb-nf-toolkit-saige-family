@@ -1,3 +1,5 @@
+params.thin_count = (params.thin_count == "" | params.thin_count == null) ? 150000 : params.thin_count
+
 log.info """\
     NEXTFLOW - DSL2 - SAIGE ExWAS - P I P E L I N E
     ==================================================
@@ -91,7 +93,7 @@ workflow {
     pheno_covar_table = params.data_csv
     cohort_table = params.cohort_sets
     step1_fam = "${params.step1_plink_prefix}.fam"
-
+    
     if (ftype == 'PLINK') {
         step2_fam = "${params.step2_plink_prefix}.fam"
     } else if (ftype == 'BGEN') {
@@ -107,17 +109,19 @@ workflow {
     preprocessing_output = SAIGE_PREPROCESSING(pheno_covar_table, cohort_table, step1_fam, step2_fam, workflow_is_phewas)
     keep_cohort_bin_pheno_combos = preprocessing_output[0]
     keep_cohort_quant_pheno_combos = preprocessing_output[1]
-    pheno_table = preprocessing_output[2]
-    cohort_sample_lists = preprocessing_output[3]
-    cohort_pheno_tables = preprocessing_output[4]
+    keep_cohort_survival_pheno_combos = preprocessing_output[2]
+    pheno_table = preprocessing_output[3]
+    cohort_sample_lists = preprocessing_output[4]
+    cohort_pheno_tables = preprocessing_output[5]
 
     // Call Step 1 sub-workflow (SAIGE_STEP1)
     step1_is_gene = false
     use_plink_prefix = params.step1_plink_prefix
-    (step1_bin_output, step1_quant_output) = SAIGE_STEP1(cohort_sample_lists,
+    (step1_bin_output, step1_quant_output,step1_survival_output) = SAIGE_STEP1(cohort_sample_lists,
         cohort_pheno_tables,
         keep_cohort_bin_pheno_combos,
         keep_cohort_quant_pheno_combos,
+        keep_cohort_survival_pheno_combos,
         use_plink_prefix,
         step1_is_gene)
 
@@ -126,6 +130,7 @@ workflow {
     (step2_bin_output, step2_quant_output) = SAIGE_VAR_STEP2(
         step1_bin_output,
         step1_quant_output,
+        step1_survival_output,
         use_genetic_data_prefix,
         bgen_sample_file,
         workflow_is_phewas
@@ -149,10 +154,15 @@ workflow {
     singles_summary = make_summary_singles_output(summary_singles_input)
 
     if (params.pheno_descriptions_file) {
-        single_varphewas_plot_script = script_name_dict['v_phewas_plots']
-        singles_plot_input = singles_merge_output.map { cohort, pheno, path -> path }.collect()
-        singles_plots = make_saige_variant_phewas_plots(singles_plot_input, single_varphewas_plot_script, params.pheno_descriptions_file) }
-    else {
+        single_varphewas_plot_script = "${moduleDir}/../scripts/make_saige_var_phewas_plots.py"
+        singles_plot_input = singles_merge_output.groupTuple(by: 0)
+        // singles_plot_input.view{"spi: ${it}"}
+        singles_plots = make_saige_variant_phewas_plots(
+            singles_plot_input,
+            single_varphewas_plot_script,
+            params.pheno_descriptions_file
+        )
+    } else {
         println('No Phenotype Information given. Plots not generated.')
     }
 }

@@ -7,6 +7,7 @@ process make_pheno_covar_summary_plots {
         val cohort_list
         val bin_pheno_list
         val quant_pheno_list
+        val survival_pheno_list
         path(step1_fam, stageAs: 'Plink_QC/*')
         path(exome_fam, stageAs: 'Exome/*')
         path pheno_covar_table
@@ -21,6 +22,7 @@ process make_pheno_covar_summary_plots {
           -c ${cohort_list.join(' ')} \
           -b ${bin_pheno_list.join(' ')} \
           -q ${quant_pheno_list.join(' ')} \
+          -t ${survival_pheno_list.join(' ')} \
           --step1Fam ${step1_fam} \
           --exomeFam ${exome_fam} \
           --data ${pheno_covar_table} \
@@ -101,7 +103,7 @@ process make_saige_variant_phewas_plots {
     memory '32GB'
     label 'safe_to_skip'
     input:
-        path singles_outputs
+        tuple val(cohort), val(pheno_list), path(singles_outputs)
         path plotting_script
         path pheno_descriptions_file
     output:

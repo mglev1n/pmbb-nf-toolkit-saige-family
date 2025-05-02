@@ -99,6 +99,7 @@ process make_pheno_summaries {
         val cohort_list
         val bin_pheno_list
         val quant_pheno_list
+        val survival_pheno_list
         path(step1_fam, stageAs: 'Step1/*')
         path(step2_fam, stageAs: 'Step2/*')
         path pheno_covar_table
@@ -113,6 +114,7 @@ process make_pheno_summaries {
           -c ${cohort_list.join(' ')} \
           -b ${bin_pheno_list.join(' ')} \
           -q ${quant_pheno_list.join(' ')} \
+          -t ${survival_pheno_list.join(' ')} \
           --step1Fam ${step1_fam} \
           --step2Fam ${step2_fam} \
           --data ${pheno_covar_table} \
@@ -249,12 +251,15 @@ workflow SAIGE_PREPROCESSING {
     main:
         MIN_BIN_CASES = params.min_bin_cases == null ? 50 : params.min_bin_cases
         MIN_QUANT_N = params.min_bin_cases == null ? 500 : params.min_quant_n
+        MIN_SURVIVAL_CASES = params.min_survival_cases  == null ? 50 : params.min_survival_cases
 
         cohort = Channel.fromList(params.cohort_list)
         bin_pheno_list = paramToList(params.bin_pheno_list)
         bin_pheno = Channel.fromList(bin_pheno_list)
         quant_pheno_list = paramToList(params.quant_pheno_list)
         quant_pheno = Channel.fromList(quant_pheno_list)
+        survival_pheno_list = paramToList(params.survival_pheno_list)
+        survival_pheno = Channel.fromList(survival_pheno_list)
         chromosome = Channel.fromList(params.chromosome_list)
 
         script_name_dict = get_script_file_names()
@@ -278,6 +283,7 @@ workflow SAIGE_PREPROCESSING {
                 cohort.collect(),
                 (bin_pheno_list.size() == 0)  ? '[]' : bin_pheno.toSortedList(),
                 (quant_pheno_list.size() == 0) ? '[]' : quant_pheno.toSortedList(),
+                (survival_pheno_list.size() == 0) ? '[]' : survival_pheno.toSortedList(),
                 step1_fam, step2_fam,
                 pheno_covar_table, cohort_table,
                 pheno_table_script
@@ -288,6 +294,7 @@ workflow SAIGE_PREPROCESSING {
                 cohort.collect(),
                 (bin_pheno_list.size() == 0)  ? '[]' : bin_pheno.toSortedList(),
                 (quant_pheno_list.size() == 0) ? '[]' : quant_pheno.toSortedList(),
+                (survival_pheno_list.size() == 0) ? '[]' : survival_pheno.toSortedList(),
                 step1_fam, step2_fam,
                 pheno_covar_table, cohort_table,
                 pheno_covar_plots_script
@@ -307,6 +314,7 @@ workflow SAIGE_PREPROCESSING {
 
         bin_pheno_info = pheno_table_info.filter { row -> bin_pheno_list.contains(row.get(1)) }
         quant_pheno_info = pheno_table_info.filter { row -> quant_pheno_list.contains(row.get(1)) }
+        survival_pheno_info = pheno_table_info.filter { row -> survival_pheno_list.contains(row.get(1))}
 
         // sex-specific pheno handling
         sex_pheno_list = paramToList(params.sex_specific_pheno_file)
@@ -344,10 +352,28 @@ workflow SAIGE_PREPROCESSING {
                 cohort, pheno -> !sex_pheno_list.contains(pheno) || \
                 (sex_pheno_list.contains(pheno) && params.sex_strat_cohort_list.contains(cohort))
             }
+        
+        // For survival, there must be a min num of cases
+        cohort_survival_pheno_case_ct = survival_pheno_info.map {
+            row -> new Tuple(row.get(0), row.get(1), row.get(4) == '' ? 0 : row.get(4).toDouble())
+        }
+       
+        keep_cohort_survival_pheno_combos = cohort_survival_pheno_case_ct \
+            .filter {
+            cohort, pheno, cases -> cases >= MIN_SURVIVAL_CASES} \
+            .map { cohort, pheno, cases -> new Tuple(cohort, pheno) } \
+            .filter {
+                // sex-specific pheno handling
+                // if the pheno is not in sex-specific list, keep it
+                // OR if it IS in the list AND the cohort is in sex-stratified list, keep it
+                cohort, pheno -> !sex_pheno_list.contains(pheno) || \
+                (sex_pheno_list.contains(pheno) && params.sex_strat_cohort_list.contains(cohort))
+            }
 
     emit:
         keep_cohort_bin_pheno_combos
         keep_cohort_quant_pheno_combos
+        keep_cohort_survival_pheno_combos
         pheno_table
         cohort_sample_lists
         cohort_pheno_tables
