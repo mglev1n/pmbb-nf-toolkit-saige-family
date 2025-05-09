@@ -22,7 +22,7 @@ process plink_qc_for_step1 {
             --bfile ${input_bed.toString().replace('.bed', '')} \
             --keep ${sample_list} \
             --memory ${use_mem} \
-            --maf ${params.maf} --geno ${params.geno} --not-chr X,Y,MT --hwe ${params.hwe} --snps-only \
+            --maf ${params.maf} --geno ${params.geno} --not-chr X,Y,MT,XY,PAR1,PAR2 --hwe ${params.hwe} --snps-only \
             --out step1
 
         shuf -n ${params.thin_count} step1.prune.in >> step1.markerid.list
@@ -112,6 +112,7 @@ process plink_qc_for_step1_saige_gene {
         stdbuf -e0 -o0 plink2 --make-bed \
           --bfile ${input_bed.toString().replace('.bed', '')} \
           --keep ${sample_list} \
+          --not-chr X,Y,MT,XY,PAR1,PAR2 \
           --extract step1.markerid.list \
           --out step1_plink > plink_qc.log
 
