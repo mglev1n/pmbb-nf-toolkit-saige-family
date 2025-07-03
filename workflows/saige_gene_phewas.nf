@@ -4,7 +4,9 @@ MIN_BIN_CASES = 50
 MIN_QUANT_N = 500
 
 params.host = ""
-params.thin_count = (params.thin_count == "" | params.thin_count == null) ? 150000 : params.thin_count
+params.max_vars_for_GRM = null
+params.pruning_r2_for_GRM = null
+params.min_rare_vars_for_GRM = '300'
 
 log.info """\
     NEXTFLOW - DSL2 - SAIGE ExWAS - P I P E L I N E
@@ -84,6 +86,7 @@ include {
     paramToList
     get_script_file_names
     check_input_genetic_data_parameters
+    dump_params_to_json
 } from '../processes/saige_helpers.nf'
 
 workflow {
@@ -178,4 +181,6 @@ workflow {
     regions_csvs = regions_plots.map { pngs, csvs -> new Tuple(csvs) }.transpose().filter { it.name =~ /.*manifest.csv/ }.collect()
     phewas_regions = 'phewas_regions'
     regions_manifest = collect_gene_phewas_regions_plots(phewas_regions, regions_csvs)
+
+    json_params = dump_params_to_json(params, 'saige_gene_burden_phewas')
 }

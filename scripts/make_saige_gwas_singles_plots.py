@@ -82,6 +82,9 @@ if ~np.any(mp.thinned['P'] < p_thresh):
     keep_signals = min(10, len(mp.thinned))
     p_thresh = 10 ** -np.nanquantile(mp.thinned['ROUNDED_Y'], 1 - keep_signals / len(mp.thinned))
 
+#TEST, please remove later 
+#p_thresh = 5E-10
+
 print(p_thresh)
 mp.sig_line = p_thresh
 

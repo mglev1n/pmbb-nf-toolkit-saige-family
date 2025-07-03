@@ -4,7 +4,8 @@ params.min_survival_cases = 100
 params.enable_chunking = false
 params.full_chromosome_list = params.chromosome_list
 params.host = ""
-params.thin_count = (params.thin_count == "" | params.thin_count == null) ? 150000 : params.thin_count
+params.max_vars_for_GRM = null
+params.pruning_r2_for_GRM = null
 
 MIN_BIN_CASES = 50
 MIN_QUANT_N = 500
@@ -96,6 +97,8 @@ if (params.annotate) {
 
 include {
     get_script_file_names
+    paramToList
+    dump_params_to_json
 } from '../processes/saige_helpers.nf'
 
 workflow {
@@ -117,7 +120,9 @@ workflow SAIGE_GWAS {
 
     if (ftype == 'PLINK') {
       if (params.enable_chunking) {
-            step2_fam = "${params.step2_plink_prefix}${params.chunks_list[0]}.fam"
+            // If chunking is enabled, use the first chunk in the list
+            chunks_list = paramToList(params.chunks_list)
+            step2_fam = "${params.step2_plink_prefix}${chunks_list[0]}.fam"
         } else {
             step2_fam = "${params.step2_plink_prefix}${params.chromosome_list[0]}.fam"
         }
@@ -229,6 +234,8 @@ workflow SAIGE_GWAS {
         gwas_analysis_2 = "gwas"
     // gwas_manifest_2 = collect_gwas_plots(gwas_analysis_2, gwas_csvs_2)
     }
+
+    json_params = dump_params_to_json(params, 'saige_gwas')
 
     emit:
     singles_merge_output

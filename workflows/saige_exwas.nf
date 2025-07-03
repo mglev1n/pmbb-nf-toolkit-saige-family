@@ -2,8 +2,14 @@ nextflow.enable.dsl = 2
 
 params.ftype = null // This is a GWAS param
 params.host = ""
-params.thin_count = (params.thin_count == "" | params.thin_count == null) ? 150000 : params.thin_count
+params.max_vars_for_GRM = null
+params.min_rare_vars_for_GRM = '300'
+params.pruning_r2_for_GRM = null
 params.LOCO = (params.exome_plink_prefix == null) ? "TRUE" : "FALSE"
+params.step1_plink_prefix = null
+params.step2_plink_prefix = null
+params.min_survival_cases = 50
+params.survival_pheno_list = null
 
 log.info """\
     NEXTFLOW - DSL2 - SAIGE ExWAS - P I P E L I N E
@@ -89,6 +95,7 @@ include {
     paramToList
     get_script_file_names
     check_input_genetic_data_parameters
+    dump_params_to_json
 } from '../processes/saige_helpers.nf'
 
 workflow {
@@ -204,5 +211,8 @@ workflow {
 
     // methods info
     methods_script = script_name_dict['exwas_methods']
+
+    json_params = dump_params_to_json(params, 'saige_exwas')
+
     // methods_blurb = make_exwas_report_methods_blurb(methods_script, params)
 }

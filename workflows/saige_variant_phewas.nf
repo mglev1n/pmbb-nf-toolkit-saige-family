@@ -1,4 +1,6 @@
-params.thin_count = (params.thin_count == "" | params.thin_count == null) ? 150000 : params.thin_count
+params.host = ""
+params.max_vars_for_GRM = null
+params.pruning_r2_for_GRM = null
 
 log.info """\
     NEXTFLOW - DSL2 - SAIGE ExWAS - P I P E L I N E
@@ -79,6 +81,7 @@ include {
 
 include {
     get_script_file_names
+    dump_params_to_json
 } from '../processes/saige_helpers.nf'
 
 workflow {
@@ -165,4 +168,6 @@ workflow {
     } else {
         println('No Phenotype Information given. Plots not generated.')
     }
+
+    json_params = dump_params_to_json(params, 'saige_variant_phewas')
 }

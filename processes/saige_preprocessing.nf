@@ -305,7 +305,7 @@ workflow SAIGE_PREPROCESSING {
         pheno_table_filename = "${launchDir}/Summary/pheno_summaries.csv"
         // parse the pheno-cohort summary table
         all_pheno_table_lines = parse_pheno_summary_table(pheno_table, pheno_table_filename)
-        num_combos = params.cohort_list.size() * (bin_pheno_list.size() + quant_pheno_list.size())
+        num_combos = params.cohort_list.size() * (bin_pheno_list.size() + quant_pheno_list.size() + survival_pheno_list.size())
         num_channel = Channel.fromList(1..num_combos)
         lines_with_num = num_channel.combine(all_pheno_table_lines)
         pheno_table_info = lines_with_num.map { i, all_lines ->

@@ -6,7 +6,7 @@ Options in effect:
   --pfile genotype_files/genotype_100markers_2chr
 
 Hostname: krypton14
-Working directory: /project/pmbb_codeworks/projects/geno_pheno_workbench_dev/SAIGE_FAMILY/saige_extdata
+Working directory: /path/to/data/saige_extdata
 Start time: Fri Sep  6 15:00:24 2024
 
 Random number seed: 1725649224

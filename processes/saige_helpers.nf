@@ -1,19 +1,22 @@
 List paramToList(param) {
-    // Function to check if parameter is a file or list
+    // This function takes a parameter and returns a list
+    // If the parameter is already a list, it returns it as is
     if (param instanceof List) {
-        // If the parameter is a list, return list
         return param
-    } else if (param instanceof String && new File(param).exists()) {
-        // If the parameter is a file, read the file contents into a list
-        listFromFile = new File(param).readLines()
-        return listFromFile
-    } else if (param == null) {
-        // If the parameter is null, return an empty list
+    // Handle null cases
+    } else if (param == '') {
         return []
+    } else if (param == null) {
+        return []
+    } else {
+        // If the parameter is a string, check if it is a file
+        def file = new File(param.toString())
+        if (file.exists()) {
+            return file.readLines()
+        } else {
+            return [param.toString()]
+        }
     }
-    // Handle cases where the parameter is neither a list nor a valid file
-    // throw new IllegalArgumentException("Parameter must be a list or an existing file")
-    return param
 }
 
 Map get_script_file_names() {
@@ -167,5 +170,21 @@ def getGpuMachineTypeChannel(numVariants, numParticipants) {
     // Grab machine type and return as a channel
     def machineType = gpuMemoryToMachineType[selectedMemory]
     return machineType
+}
+
+import groovy.json.JsonBuilder
+process dump_params_to_json {
+    publishDir "${launchDir}/Summary", mode: 'copy'
+    machineType 'n2-standard-2'
+
+    input:
+        val params_dict
+        val pipeline_name
+    output:
+        path("${pipeline_name}_params.json")
+    shell:
+        """
+        echo '${new JsonBuilder(params_dict).toPrettyString().replace(';', '|')}' > ${pipeline_name}_params.json
+        """
 }
 

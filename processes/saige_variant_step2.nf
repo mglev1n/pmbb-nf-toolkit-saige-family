@@ -2,6 +2,10 @@
 This is a collection of SAIGE Step 2 processes
 */
 
+include {
+    paramToList
+} from '../processes/saige_helpers.nf'
+
 process filter_snps_plink {
     publishDir "${launchDir}/Filtered_Files/"
     machineType 'n2-standard-4'
@@ -25,6 +29,11 @@ process filter_snps_plink {
         """
 }
 
+
+
+
+
+
 process filter_snps_bgen {
     publishDir "${launchDir}/Filtered_Files/"
     machineType 'n2-standard-4'
@@ -35,7 +44,7 @@ process filter_snps_bgen {
         tuple val(chr), path("phewas_input.chr${chr}.{bgen,bgen.bgi}")
     shell:
         """
-        awk '{print \$1 ":" \$2 "-" \$3}' ${snp_list_file} > bgen_formatted_snplist.txt
+        awk '{print "chr" \$1 ":" \$2 "-" \$3}' ${snp_list_file} > bgen_formatted_snplist.txt
         ${params.my_bgenix} -g ${bgen_set[0].toString()} -incl-range bgen_formatted_snplist.txt > phewas_input.chr${chr}.bgen
 
         if test -f phewas_input.chr${chr}.bgen; then
@@ -54,10 +63,15 @@ process filter_snps_bgen {
         """
 }
 
+
 process call_saige_step2_PLINK_binary {
     errorStrategy 'retry'
     publishDir "${launchDir}/${cohort_dir}/Saige_Step2_Results/"
     machineType 'n2-standard-4'
+    disk {
+        def fileSizeGb = plink_bed.size() / (1024 ** 3)
+        return "${50 + fileSizeGb} GB"
+    }
     input:
         // variables
         tuple val(cohort_dir), val(pheno), path(step1_rda), path(step1_var), val(chr)
@@ -151,6 +165,10 @@ process call_saige_step2_PLINK_binary {
 process call_saige_step2_PLINK_quant {
     publishDir "${launchDir}/${cohort_dir}/Saige_Step2_Results/"
     machineType 'n2-standard-4'
+    disk {
+        def fileSizeGb = plink_bed.size() / (1024 ** 3)
+        return "${50 + fileSizeGb} GB"
+    }
     input:
         // variables
         tuple val(cohort_dir), val(pheno), path(step1_rda), path(step1_var), val(chr)
@@ -242,6 +260,10 @@ process call_saige_step2_PLINK_survival {
     errorStrategy 'retry'
     publishDir "${launchDir}/${cohort_dir}/Saige_Step2_Results/"
     machineType 'n2-standard-4'
+    disk {
+        def fileSizeGb = plink_bed.size() / (1024 ** 3)
+        return "${50 + fileSizeGb} GB"
+    }
     input:
         // variables
         tuple val(cohort_dir), val(pheno), path(step1_rda), path(step1_var), val(chr)
@@ -336,6 +358,10 @@ process call_saige_step2_BGEN_binary {
     publishDir "${launchDir}/${cohort_dir}/Saige_Step2_Results/"
     memory = '100 GB'
     machineType 'n2-standard-4'
+    disk {
+        def fileSizeGb = bgenFile.size() / (1024 ** 3)
+        return "${50 + fileSizeGb} GB"
+    }
 
     input:
         tuple val(cohort_dir), val(pheno), path(step1_rda), path(step1_var), val(chr)
@@ -421,6 +447,10 @@ process call_saige_step2_BGEN_binary {
 process call_saige_step2_BGEN_quant {
     publishDir "${launchDir}/${cohort_dir}/Saige_Step2_Results/"
     machineType 'n2-standard-4'
+    disk {
+        def fileSizeGb = bgenFile.size() / (1024 ** 3)
+        return "${50 + fileSizeGb} GB"
+    }
     input:
         // variables
         tuple val(cohort_dir), val(pheno), path(step1_rda), path(step1_var), val(chr)
@@ -508,6 +538,10 @@ process call_saige_step2_BGEN_quant {
 process call_saige_step2_BGEN_survival {
     publishDir "${launchDir}/${cohort_dir}/Saige_Step2_Results/"
     machineType 'n2-standard-4'
+    disk {
+        def fileSizeGb = bgenFile.size() / (1024 ** 3)
+        return "${50 + fileSizeGb} GB"
+    }
     
     input:
         tuple val(cohort_dir), val(pheno), path(step1_rda), path(step1_var), val(chr)
@@ -593,6 +627,10 @@ process call_saige_step2_BGEN_survival {
 process call_saige_step2_BGEN_binary_with_sparse_GRM {
     publishDir "${launchDir}/${cohort_dir}/Saige_Step2_Results/"
     machineType 'n2-standard-4'
+    disk {
+        def fileSizeGb = bgenFile.size() / (1024 ** 3)
+        return "${50 + fileSizeGb} GB"
+    }
     input:
         // variables
         tuple val(cohort_dir), val(pheno), path(step1_rda), path(step1_var), val(chr)
@@ -682,6 +720,10 @@ process call_saige_step2_BGEN_binary_with_sparse_GRM {
 process call_saige_step2_BGEN_quant_with_sparse_GRM {
     publishDir "${launchDir}/${cohort_dir}/Saige_Step2_Results/"
     machineType 'n2-standard-4'
+    disk {
+        def fileSizeGb = bgenFile.size() / (1024 ** 3)
+        return "${50 + fileSizeGb} GB"
+    }
     input:
         // variables
         tuple val(cohort_dir), val(pheno), path(step1_rda), path(step1_var), val(chr)
@@ -769,6 +811,10 @@ process call_saige_step2_BGEN_quant_with_sparse_GRM {
 process call_saige_step2_BGEN_survival_with_sparse_GRM {
     publishDir "${launchDir}/${cohort_dir}/Saige_Step2_Results/"
     machineType 'n2-standard-4'
+    disk {
+        def fileSizeGb = bgenFile.size() / (1024 ** 3)
+        return "${50 + fileSizeGb} GB"
+    }
     input:
         // variables
         tuple val(cohort_dir), val(pheno), path(step1_rda), path(step1_var), val(chr)
@@ -859,6 +905,10 @@ process call_saige_step2_BGEN_survival_with_sparse_GRM {
 process call_saige_step2_PLINK_binary_with_sparse_GRM {
     publishDir "${launchDir}/${cohort_dir}/Saige_Step2_Results/"
     machineType 'n2-standard-4'
+    disk {
+        def fileSizeGb = plink_bed.size() / (1024 ** 3)
+        return "${50 + fileSizeGb} GB"
+    }
     input:
         // variables
         tuple val(cohort_dir), val(pheno), path(step1_rda), path(step1_var), val(chr)
@@ -955,6 +1005,10 @@ process call_saige_step2_PLINK_binary_with_sparse_GRM {
 process call_saige_step2_PLINK_quant_with_sparse_GRM {
     publishDir "${launchDir}/${cohort_dir}/Saige_Step2_Results/"
     machineType 'n2-standard-4'
+    disk {
+        def fileSizeGb = plink_bed.size() / (1024 ** 3)
+        return "${50 + fileSizeGb} GB"
+    }
     input:
         // variables
         tuple val(cohort_dir), val(pheno), path(step1_rda), path(step1_var), val(chr)
@@ -1049,6 +1103,10 @@ process call_saige_step2_PLINK_quant_with_sparse_GRM {
 process call_saige_step2_PLINK_survival_with_sparse_GRM {
     publishDir "${launchDir}/${cohort_dir}/Saige_Step2_Results/"
     machineType 'n2-standard-4'
+    disk {
+        def fileSizeGb = plink_bed.size() / (1024 ** 3)
+        return "${50 + fileSizeGb} GB"
+    }
     input:
         // variables
         tuple val(cohort_dir), val(pheno), path(step1_rda), path(step1_var), val(chr)
@@ -1141,9 +1199,6 @@ process call_saige_step2_PLINK_survival_with_sparse_GRM {
         """
 }
 
-include {
-    paramToList
-} from '../processes/saige_helpers.nf'
 
 workflow SAIGE_VAR_STEP2 {
     take:
@@ -1159,7 +1214,7 @@ workflow SAIGE_VAR_STEP2 {
         quant_pheno = Channel.fromList(paramToList(params.quant_pheno_list))
         survival_pheno = Channel.fromList(paramToList(params.survival_pheno_list))
         if (params.enable_chunking) {
-            chromosome = Channel.fromList(params.chunks_list)
+            chromosome = Channel.fromList(paramToList(params.chunks_list))
         } else {
             chromosome = Channel.fromList(params.chromosome_list)
         }
@@ -1204,6 +1259,7 @@ workflow SAIGE_VAR_STEP2 {
 
         // These have KEPT (phenos, cohorts) x chromosomes
         step2_bin_input = step1_bin_output.combine(chromosome)
+        step2_bin_input.view{"s2 bin: ${it}"}
         step2_quant_input = step1_quant_output.combine(chromosome)
         step2_survival_input = step1_survival_output.combine(chromosome)
 
@@ -1216,6 +1272,8 @@ workflow SAIGE_VAR_STEP2 {
         }.join(geno_data_parallel_bin, by: [0, 1, 2]).map {
             cohort, pheno, chr, geno_fileset -> geno_fileset
         }
+
+        chr_geno_files_bin.view{"chrgeno bin: ${it}"}
 
         // Same for quantitative phenotypes
         chr_geno_files_quant = step2_quant_input.map {

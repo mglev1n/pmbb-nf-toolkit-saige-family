@@ -101,6 +101,8 @@ print(annot_thresh)
 mp.update_plotting_parameters(vertical=True, sig=annot_thresh if not np.any(mp.thinned['P'] < 5E-8) else 5E-8, 
                               sug=annot_thresh, annot_thresh=annot_thresh, merge_genes=True)
 
+print(mp.df)
+
 mp.full_plot(save=output_manhattan, rep_boost=False, extra_cols={
              'beta':'BETA', 'RSID': 'RSID'}, number_cols=['BETA'], keep_chr_pos=False, with_table_bg = False, with_table_grid= False)
 

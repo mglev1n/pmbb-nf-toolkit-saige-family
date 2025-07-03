@@ -382,6 +382,7 @@ process make_summary_table_with_annot {
         '''
 }
 
+/*
 process MERGE_CHUNKS {
     publishDir "${launchDir}/merged_chunk_files/"
 
@@ -399,6 +400,39 @@ process MERGE_CHUNKS {
             zcat \$f | tail -n +2  >> ${cohort_dir}.${pheno}.${full_chromosome}.txt
         fi
     done
+    gzip -9 ${cohort_dir}.${pheno}.${full_chromosome}.txt
+    """
+}
+*/
+
+process MERGE_CHUNKS {
+    publishDir "${launchDir}/merged_chunk_files/"
+    
+    input:
+    tuple val(cohort_dir), val(pheno), val(full_chromosome), path(file_paths)
+    
+    output:
+    tuple val(cohort_dir), val(pheno), val(full_chromosome), path("${cohort_dir}.${pheno}.${full_chromosome}.txt.gz")
+    
+    script:
+    // Convert file_paths to a string list for the shell script
+    def file_list = file_paths.join(' ')
+    
+    """
+    # Get the first file from the list
+    FIRST_FILE=\$(ls ${file_paths[0]} 2>/dev/null || echo ${file_paths})
+    
+    # Extract header from first file
+    zcat \$FIRST_FILE > ${cohort_dir}.${pheno}.${full_chromosome}.txt
+    
+    # Process each file, skipping header lines for all but the first file
+    for f in ${file_list}; do
+        if [ "\$f" != "\$FIRST_FILE" ]; then
+            zcat \$f | tail -n +2 >> ${cohort_dir}.${pheno}.${full_chromosome}.txt
+        fi
+    done
+    
+    # Compress the final file
     gzip -9 ${cohort_dir}.${pheno}.${full_chromosome}.txt
     """
 }

@@ -1,5 +1,5 @@
 process plink_qc_for_step1 {
-    publishDir "${cohort_dir}/Saige_Step1/"
+    publishDir "${launchDir}/${cohort}/Saige_Step1/", enabled: {params.host != 'AOU'}
     machineType 'n2-standard-4'
     memory { params.host == 'AOU' ? '63GB' : '24GB' }
     input:
@@ -17,22 +17,71 @@ process plink_qc_for_step1 {
         path 'plink_qc.log'
     script:
         use_mem = params.host == 'AOU' ? '62000' : '23000'
+        is_max_vars_null = params.max_vars_for_GRM == null ? 'YES' : 'NO'
+        use_max_vars = params.max_vars_for_GRM == null ? '150000' : params.max_vars_for_GRM
+        use_min_vars = params.min_vars_for_GRM == null ? '30000' : params.min_vars_for_GRM
+        use_prune_r2 = params.pruning_r2_for_GRM == null ? '0.6' : params.pruning_r2_for_GRM
+        // max_vars_for_GRM = params.max_vars_for_GRM == null ? '150000' : params.max_vars_for_GRM
+        // min_vars_for_GRM = params.min_vars_for_GRM == null ? '30000' : params.min_vars_for_GRM
         """
-        plink2 --indep-pairwise 50 5 0.4 \
+        num_samples=\$(< ${sample_list} wc -l)
+        rare_count=\$(awk -v n="\$num_samples" -v maf="${params.maf}" 'BEGIN { printf "%d", n * 2 * maf }')
+
+        plink2 --indep-pairwise 50kb 1 ${use_prune_r2} \
             --bfile ${input_bed.toString().replace('.bed', '')} \
             --keep ${sample_list} \
             --memory ${use_mem} \
-            --maf ${params.maf} --geno ${params.geno} --not-chr X,Y,MT,XY,PAR1,PAR2 --hwe ${params.hwe} --snps-only \
-            --out step1
+            --geno ${params.geno} \
+            --maf ${params.maf} \
+            --not-chr X,Y,MT,XY,PAR1,PAR2 \
+            --hwe ${params.hwe} \
+            --snps-only \
+            --out step1_pruning
+        
+        num_maf=\$(< step1_pruning.prune.in wc -l)
 
-        shuf -n ${params.thin_count} step1.prune.in >> step1.markerid.list
+        echo "Found \${num_maf} independent SNPs after filtering (min: ${use_min_vars}, max: ${use_max_vars})"
+        
+        # if the number of variants is less than the minimum, exit
+        if [ "\$num_maf" -lt ${use_min_vars} ]; then
+            echo "ERROR: Insufficient variants for stable GRM (\${num_maf} < ${use_min_vars})"
+            echo "Please reduce GRM MAF threshold or provide more markers"
+            exit 1
+        
+        # if thenumber of variants is greater than the maximum, and no maximum 
+        # is set, then force user to explicitly set a maximum rather than silently reducing number of variants
+        elif [ "${is_max_vars_null}" = "YES" ] && [ "\$num_maf" -gt 150000 ]; then
+            echo "Error: Greater than 150k variants left which could cause step 1 to run for a long time."
+            echo "You have 2 options: (1) set params.max_vars_for_GRM to desired number of variants, and we will randomly subset them."
+            echo "Or (2) reduce number of markers"
+            exit 1
+        
+        # if the number of variants is less than the maximum, and no maximum is set, then use all variants
+        elif [ "${is_max_vars_null}" = "YES" ] && [ "\$num_maf" -lt 150000 ]; then
+            echo "INFO: \$num_maf < 150000. Using all \${num_maf} variants for GRM construction"
+            cp step1_pruning.prune.in  step1.markerid.list
+        
+        # if the number of variants is greater than the maximum, and a maximum is set, then use entire set
+        elif [ "${is_max_vars_null}" = "NO" ] && [ "\$num_maf" -lt ${use_max_vars} ] || [ "\$num_maf" -eq ${use_max_vars} ]; then
+            echo "INFO: \$num_maf <= ${use_max_vars}. Using all \${num_maf} variants for GRM construction"
+            cp step1_pruning.prune.in  step1.markerid.list
+        
+        # if the number of variants is greater than the maximum, and a maximum is set, then randomly subset down to maximum
+        elif [ "${is_max_vars_null}" = "NO" ] && [ "\$num_maf" -gt ${use_max_vars} ]; then
+            echo "INFO: \$num_maf > ${use_max_vars}, randomly selecting ${use_max_vars} variants"
+            shuf -n ${use_max_vars} step1_pruning.prune.in > step1.markerid.list
+        fi
 
-        #  make input file for step 1 using variant list
+        # Copy the filtered IDs to the output file
+        echo "Filtered IDs written to step1.markerid.list"
+
+        sort step1.markerid.list | uniq > step1.markerid.dedup.txt
+
         stdbuf -e0 -o0 plink2 --make-bed \
             --bfile ${input_bed.toString().replace('.bed', '')} \
             --keep ${sample_list} \
             --memory ${use_mem} \
-            --extract step1.markerid.list \
+            --extract step1.markerid.dedup.txt \
             --out step1_plink > plink_qc.log
         """
     stub:
@@ -45,14 +94,9 @@ process plink_qc_for_step1 {
 }
 
 process plink_qc_for_step1_saige_gene {
-    publishDir "${cohort_dir}/Saige_Step1/"
-    machineType 'n2-standard-4'
+    publishDir "${launchDir}/${cohort}/Saige_Step1/", enabled: {params.host != 'AOU'}
+    machineType 'n2-standard-16'
     memory { params.host == 'AOU' ? '63GB' : '24GB' }
-    /* commmon variants : ld pruning 50 5 0.4
-    / 10-20 : plink --counts --snplist -> 1000
-    / 20-430 : plink --counts --snplist -> 1000
-    / plink --extract
-    */
     input:
         // variables
         tuple val(cohort_dir), path(sample_list)
@@ -68,56 +112,91 @@ process plink_qc_for_step1_saige_gene {
         path 'plink_qc.log'
     script:
         use_mem = params.host == 'AOU' ? '62000' : '23000'
+        is_max_vars_null = params.max_vars_for_GRM == null ? 'YES' : 'NO'
+        use_max_vars = params.max_vars_for_GRM == null ? '150000' : params.max_vars_for_GRM
+        use_min_vars = params.min_vars_for_GRM == null ? '30000' : params.min_vars_for_GRM
+        use_min_rare_vars = params.min_rare_vars_for_GRM == null ? '300' : params.min_rare_vars_for_GRM
+        use_prune_r2 = params.pruning_r2_for_GRM == null ? '0.6' : params.pruning_r2_for_GRM
         """
+        num_samples=\$(< ${sample_list} wc -l)
+        rare_count=\$(awk -v n="\$num_samples" -v maf="${params.maf}" 'BEGIN { printf "%d", n * 2 * maf }')
 
-        # get counts from whole plink file
-        # needs to be plink2 executable to get correct file format out
-        plink2 --freq counts \
-          --keep ${sample_list} \
-          --max-maf 0.01 \
-          --mac 10 \
-          --bfile ${input_bed.toString().replace('.bed', '')} \
-          --out step1_counts
+        plink2 --indep-pairwise 50kb 1 ${use_prune_r2} \
+            --freq counts \
+            --bfile ${input_bed.toString().replace('.bed', '')} \
+            --keep ${sample_list} \
+            --memory ${use_mem} \
+            --geno ${params.geno} \
+            --not-chr X,Y,MT,XY,PAR1,PAR2 \
+            --hwe ${params.hwe} \
+            --snps-only \
+            --out step1_pruning
+        
+        wc -l step1_pruning.acount
 
-        awk '{ if ((\$5 >= 10 && \$5 <= 20) || (2*\$6-\$5 >= 10 && 2*\$6-\$5 <= 20)) { print \$2} }' ./step1_counts.acount > temp_mac10to20_ids.txt
-        awk '{ if ((\$5 >= 20) || (2*\$6-\$5 >= 20)) { print \$2} }' step1_counts.acount > temp_mac20ormore_ids.txt
+        awk '{ if ((\$5 < (\$6-\$5) && \$5 >= 10 && \$5 <= 20) || (\$5 > (\$6-\$5) && \$6-\$5 >= 10 && \$6-\$5 <= 20)) { print \$2} }' ./step1_pruning.acount > temp_mac10to20_ids.txt
+        awk '{ if ((\$5 < (\$6-\$5) && \$5 > 20) || (\$5 > (\$6-\$5) && \$6-\$5 > 20)) { print \$2} }' step1_pruning.acount > temp_mac20ormore_ids.txt
+        awk -v ct="\$rare_count" '{ if ((\$5 < (\$6-\$5) && \$5 >= ct) || (\$5 > (\$6-\$5) && \$6-\$5 >= ct)) { print \$2} }' step1_pruning.acount > temp_maf_min.txt
+
+        comm -12 <(sort temp_maf_min.txt) <(sort step1_pruning.prune.in) > prune_and_maf.txt
 
         num_mac10=\$(< temp_mac10to20_ids.txt wc -l)
         num_mac20=\$(< temp_mac20ormore_ids.txt wc -l)
+        num_maf=\$(< prune_and_maf.txt wc -l)
 
-        if [ "\$num_mac10" -lt 1000 ]; then
-            echo "Error: Less than 1000 SNPs with MAC between 10 and 20"
-        elif [ "\$num_mac20" -lt 1000 ]; then
-            echo "Error: Less than 1000 SNPs with MAC greater than 20"
-        else
-            # Copy the filtered IDs to the output file
-            shuf -n 1000 temp_mac20ormore_ids.txt > ./step1.markerid.list
-            shuf -n 1000 temp_mac10to20_ids.txt >> ./step1.markerid.list
-            echo "Filtered IDs written to step1.markerid.list"
+        echo "\${num_mac10} Mac 10-20 \${num_mac20} MAC >20 \${num_maf} variants > MAF."
+
+        if [ "\$num_mac10" -lt ${use_min_rare_vars} ]; then
+            echo "Error: Less than 300 SNPs with MAC between 10 and 20"
+            echo "Please provide more rare markers or set params.use_min_rare_vars to a string less than ${use_min_rare_vars}"
+            exit 1
+        elif [ "\$num_mac20" -lt ${use_min_rare_vars} ]; then
+            echo "Error: Less than 300 SNPs with MAC greater than 20"
+            echo "This is highly unusual. Please check your data"
+            exit 1
+        
+        elif [ "\$num_maf" -lt ${use_min_vars} ]; then
+            echo "ERROR: Insufficient variants for stable GRM (\${num_maf} < ${use_min_vars})"
+            echo "Please reduce GRM MAF threshold or provide more markers"
+            exit 1
+        
+        # if the number of variants is greater than the maximum, and no maximum 
+        # is set, then force user to explicitly set a maximum rather than silently reducing number of variants
+        elif [ "${is_max_vars_null}" = "YES" ] && [ "\$num_maf" -gt 150000 ]; then
+            echo "Error: Greater than 150k variants left which could cause step 1 to run for a long time."
+            echo "You have 2 options: (1) set params.max_vars_for_GRM to desired number of variants, and we will randomly subset them."
+            echo "Or (2) reduce number of markers"
+            exit 1
+        
+        # if the number of variants is less than the maximum, and no maximum is set, then use all variants
+        elif [ "${is_max_vars_null}" = "YES" ] && [ "\$num_maf" -lt 150000 ]; then
+            echo "INFO: \$num_maf < 150000. Using all \${num_maf} variants for GRM construction"
+            cp step1_pruning.prune.in  step1.markerid.list
+        
+        # if the number of variants is greater than the maximum, and a maximum is set, then use entire set
+        elif [ "${is_max_vars_null}" = "NO" ] && [ "\$num_maf" -lt ${use_max_vars} ] || [ "\$num_maf" -eq ${use_max_vars} ]; then
+            echo "INFO: \$num_maf <= ${use_max_vars}. Using all \${num_maf} variants for GRM construction"
+            cp step1_pruning.prune.in  step1.markerid.list
+        
+        # if the number of variants is greater than the maximum, and a maximum is set, then randomly subset down to maximum
+        elif [ "${is_max_vars_null}" = "NO" ] && [ "\$num_maf" -gt ${use_max_vars} ]; then
+            echo "INFO: \$num_maf > ${use_max_vars}, randomly selecting ${use_max_vars} variants"
+            shuf -n ${use_max_vars} step1_pruning.prune.in > step1.markerid.list
         fi
 
-        rm temp_mac10to20_ids.txt
+        # Copy the filtered IDs to the output file
+        shuf -n 300 temp_mac10to20_ids.txt >> ./step1.markerid.list
+        shuf -n 300 temp_mac20ormore_ids.txt >> ./step1.markerid.list
+        echo "Filtered IDs written to step1.markerid.list"
 
-        plink2 --indep-pairwise 50 5 0.4 \
+        sort step1.markerid.list | uniq > step1.markerid.dedup.txt
+
+        stdbuf -e0 -o0 plink2 --make-bed \
             --bfile ${input_bed.toString().replace('.bed', '')} \
             --keep ${sample_list} \
-            --maf ${params.maf} --geno ${params.geno} \
-            --not-chr X,Y,MT --hwe ${params.hwe} --snps-only \
-            --out step1
-
-        # create snp list with variants from all categories
-        shuf -n ${params.thin_count} step1.prune.in >> step1.markerid.list
-
-        #  make input file for step 1 using variant list
-        stdbuf -e0 -o0 plink2 --make-bed \
-          --bfile ${input_bed.toString().replace('.bed', '')} \
-          --keep ${sample_list} \
-          --not-chr X,Y,MT,XY,PAR1,PAR2 \
-          --extract step1.markerid.list \
-          --out step1_plink > plink_qc.log
-
-        rm step1_counts.acount
-        rm step1.prune.in
+            --memory ${use_mem} \
+            --extract step1.markerid.dedup.txt \
+            --out step1_plink > plink_qc.log
         """
     stub:
         '''
@@ -152,7 +231,7 @@ String get_covar_list_args(String cohort, cohort_cat_covars, cohort_cont_covars)
 }
 /*
 process call_saige_step1_bin {
-    publishDir "${launchDir}/${cohort}/Saige_Step1/"
+    publishDir "${launchDir}/${cohort}/Saige_Step1/", enabled: {params.host != 'AOU'}
     machineType 'n2-standard-4'
 
     label(params.GPU == 'ON' ? 'gpu_on' : 'gpu_off')
@@ -172,7 +251,7 @@ process call_saige_step1_bin {
             params.sex_strat_cohort_list.contains(cohort) ? params.sex_strat_cont_covars : params.cont_covars)
         """
         if [ "${params.GPU}"  = "ON" ]; then
-            mpirun -n 8 singularity exec --bind /project/:/project/,./:/output,/static/ --nv \
+            mpirun -n 8 singularity exec --bind /path/to/data/ --nv \
             saige-doe-3.sif \
             /opt/conda/lib/R/bin/Rscript /SAIGE_container/SAIGE-DOE/extdata/step1_fitNULLGLMM.R  \
             --plinkFile=step1_plink \
@@ -311,36 +390,43 @@ process dnanexus_skip_step1_bin {
     """
 }
 
+//machineType { (params.GPU == 'ON') ? getGpuMachineTypeChannel(plink_set[1].readLines().size, pheno_file.readLines().size) : 'n2-standard-4' }
+
 process call_saige_step1_bin {
-    publishDir "${launchDir}/${cohort}/Saige_Step1/"
-    errorStrategy 'retry'
+    publishDir "${launchDir}/${cohort}/Saige_Step1/", enabled: {params.host != 'AOU'}
+    // errorStrategy 'retry'
+    machineType 'n2-standard-16'
+    memory { params.host == 'AOU' ? '63GB' : '24GB' }
+    cpus 15
     input:
         // variables
         tuple val(cohort), val(pheno), path(plink_set), path(samples), path(pheno_file)
-
-    machineType { (params.GPU == 'ON') ? getGpuMachineTypeChannel(plink_set[1].readLines().size, pheno_file.readLines().size) : 'n2-standard-4' }
-
+        val is_gene
     output:
         // variables
         tuple val(cohort), val(pheno), path("${pheno}.rda"), path("${pheno}.varianceRatio.txt")
         path "${pheno}.log"
     shell:
+        use_mem = params.host == 'AOU' ? '56' : '16'
         covariate_args = get_covar_list_args(cohort,
             params.sex_strat_cohort_list.contains(cohort) ? params.sex_strat_cat_covars : params.cat_covars,
             params.sex_strat_cohort_list.contains(cohort) ? params.sex_strat_cont_covars : params.cont_covars)
+        vr_flag = is_gene ? '--isCateVarianceRatio=TRUE' : '--isCateVarianceRatio=FALSE'
         """
         if [ "${params.GPU}" = "ON" ] && [ "${params.host}" = "LPC" ]; then
-            mpirun -n 8 singularity exec --bind /project/:/project/,./:/output,/static/ --nv \
+            mpirun -n 8 singularity exec --bind /path/to/data/ --nv \
             saige-doe-3.sif \
             /opt/conda/lib/R/bin/Rscript /SAIGE_container/SAIGE-DOE/extdata/step1_fitNULLGLMM.R  \
             --plinkFile=step1_plink \
             --phenoFile=${pheno_file} \
             --phenoCol=${pheno} \
             ${covariate_args} \
+            ${vr_flag} \
+            --minMAFforGRM=${params.maf} \
+            --maxMissingRateforGRM=${params.geno} \
             --sampleIDColinphenoFile=${params.id_col} \
             --traitType=binary \
             --outputPrefix=${pheno} \
-            --nThreads=1 \
             --IsOverwriteVarianceRatioFile=TRUE > ${pheno}.log
         elif [ "${params.GPU}"  = "ON" ] &&  [ "${params.host}" = "DNAnexus" ]; then
             mpirun -n 8 --allow-run-as-root \
@@ -349,10 +435,12 @@ process call_saige_step1_bin {
             --phenoFile=${pheno_file} \
             --phenoCol=${pheno}\
             ${covariate_args} \
+            ${vr_flag} \
+            --minMAFforGRM=${params.maf} \
+            --maxMissingRateforGRM=${params.geno} \
             --sampleIDColinphenoFile=${params.id_col} \
             --traitType=binary \
             --outputPrefix=${pheno} \
-            --nThreads=1 \
             --LOCO=FALSE \
             --IsOverwriteVarianceRatioFile=TRUE > ${pheno}.log
          elif [ "${params.GPU}"  = "ON" ] &&  [ "${params.host}" = "AOU" ]; then
@@ -362,10 +450,12 @@ process call_saige_step1_bin {
             --phenoFile=${pheno_file} \
             --phenoCol=${pheno}\
             ${covariate_args} \
+            ${vr_flag} \
+            --minMAFforGRM=${params.maf} \
+            --maxMissingRateforGRM=${params.geno} \
             --sampleIDColinphenoFile=${params.id_col} \
             --traitType=binary \
             --outputPrefix=${pheno} \
-            --nThreads=1 \
             --LOCO=FALSE \
             --IsOverwriteVarianceRatioFile=TRUE > ${pheno}.log
         elif [ "${params.GPU}" = "OFF" ]; then
@@ -375,11 +465,15 @@ process call_saige_step1_bin {
             --phenoFile=${pheno_file} \
             --phenoCol=${pheno} \
             ${covariate_args} \
+            ${vr_flag} \
+            --memoryChunk=${use_mem} \
+            --nThreads=14 \
+            --minMAFforGRM=${params.maf} \
+            --maxMissingRateforGRM=${params.geno} \
             --sampleIDColinphenoFile=${params.id_col} \
             --traitType=binary \
             --outputPrefix=${pheno} \
             --LOCO=${params.LOCO} \
-            --nThreads=29 \
             --IsOverwriteVarianceRatioFile=TRUE > ${pheno}.log
         fi
 
@@ -393,34 +487,40 @@ process call_saige_step1_bin {
 }
 
 process call_saige_step1_quant {
-    publishDir "${launchDir}/${cohort}/Saige_Step1/"
+    publishDir "${launchDir}/${cohort}/Saige_Step1/", enabled: {params.host != 'AOU'}
     machineType 'n2-standard-16'
+    memory { params.host == 'AOU' ? '63GB' : '24GB' }
     cpus 15
 
     input:
         // variables
         tuple val(cohort), val(pheno), path(plink_set), path(samples), path(pheno_file)
+        val is_gene
     output:
         // variables
         tuple val(cohort), val(pheno), path("${pheno}.rda"), path("${pheno}.varianceRatio.txt")
         path "${pheno}.log"
     shell:
+        use_mem = params.host == 'AOU' ? '56' : '16'
         covariate_args = get_covar_list_args(cohort,
             params.sex_strat_cohort_list.contains(cohort) ? params.sex_strat_cat_covars : params.cat_covars,
             params.sex_strat_cohort_list.contains(cohort) ? params.sex_strat_cont_covars : params.cont_covars)
+        vr_flag = is_gene ? '--isCateVarianceRatio=TRUE' : '--isCateVarianceRatio=FALSE'
         """
         if [ "${params.GPU}"  = "ON" ]; then
-            mpirun -n 8 singularity exec --bind /project/:/project/,./:/output,/static/ --nv \
+            mpirun -n 8 singularity exec --bind /path/to/data/ --nv \
             saige-doe-3.sif \
             /opt/conda/lib/R/bin/Rscript /SAIGE_container/SAIGE-DOE/extdata/step1_fitNULLGLMM.R  \
             --plinkFile=step1_plink \
             --phenoFile=${pheno_file} \
             --phenoCol=${pheno} \
             ${covariate_args} \
+            ${vr_flag} \
+            --minMAFforGRM=${params.maf} \
+            --maxMissingRateforGRM=${params.geno} \
             --sampleIDColinphenoFile=${params.id_col} \
             --traitType=quantitative \
             --outputPrefix=${pheno} \
-            --nThreads=1 \
             --invNormalize=TRUE \
             --IsOverwriteVarianceRatioFile=TRUE > ${pheno}.log
         elif [ "${params.GPU}" = "OFF" ]; then
@@ -430,10 +530,14 @@ process call_saige_step1_quant {
             --phenoFile=${pheno_file} \
             --phenoCol=${pheno} \
             ${covariate_args} \
+            ${vr_flag} \
+            --minMAFforGRM=${params.maf} \
+            --maxMissingRateforGRM=${params.geno} \
             --sampleIDColinphenoFile=${params.id_col} \
             --traitType=quantitative \
             --outputPrefix=${pheno} \
-            --nThreads=29 \
+            --memoryChunk=${use_mem} \
+            --nThreads=14 \
             --LOCO=${params.LOCO} \
             --invNormalize=TRUE \
             --IsOverwriteVarianceRatioFile=TRUE > ${pheno}.log
@@ -449,30 +553,38 @@ process call_saige_step1_quant {
 }
 
 process call_saige_step1_survival {
-    publishDir "${launchDir}/${cohort}/Saige_Step1/"
-    machineType 'n2-standard-4'
-    errorStrategy 'retry'
+    publishDir "${launchDir}/${cohort}/Saige_Step1/", enabled: {params.host != 'AOU'}
+    machineType 'n2-standard-16'
+    memory { params.host == 'AOU' ? '63GB' : '24GB' }
+    cpus 15
+    // errorStrategy 'retry'
 
     input:
         // variables
         tuple val(cohort), val(pheno), path(plink_set), path(samples), path(pheno_file)
+        val is_gene
     output:
         // variables
         tuple val(cohort), val(pheno), path("${pheno}.rda"), path("${pheno}.varianceRatio.txt")
         path "${pheno}.log"
     shell:
+        use_mem = params.host == 'AOU' ? '56' : '16'
         covariate_args = get_covar_list_args(cohort,
             params.sex_strat_cohort_list.contains(cohort) ? params.sex_strat_cat_covars : params.cat_covars,
             params.sex_strat_cohort_list.contains(cohort) ? params.sex_strat_cont_covars : params.cont_covars)
+        vr_flag = is_gene ? '--isCateVarianceRatio=TRUE' : '--isCateVarianceRatio=FALSE'
         """
         if [ "${params.GPU}" = "ON" ] && [ "${params.host}" = "LPC" ]; then
-            mpirun -n 8 singularity exec --bind /project/:/project/,./:/output,/static/ --nv \
+            mpirun -n 8 singularity exec --bind /path/to/data/ --nv \
             saige-doe-3.sif \
             /opt/conda/lib/R/bin/Rscript /SAIGE_container/SAIGE-DOE/extdata/step1_fitNULLGLMM.R  \
             --plinkFile=step1_plink \
             --phenoFile=${pheno_file} \
             --phenoCol=${pheno} \
             ${covariate_args} \
+            ${vr_flag} \
+            --minMAFforGRM=${params.maf} \
+            --maxMissingRateforGRM=${params.geno} \
             --sampleIDColinphenoFile=${params.id_col} \
             --outputPrefix=${pheno} \
             --traitType=survival \
@@ -488,13 +600,17 @@ process call_saige_step1_survival {
             --phenoFile=${pheno_file} \
             --phenoCol=${pheno} \
             ${covariate_args} \
+            ${vr_flag} \
+            --minMAFforGRM=${params.maf} \
+            --maxMissingRateforGRM=${params.geno} \
             --sampleIDColinphenoFile=${params.id_col} \
             --outputPrefix=${pheno} \
             --traitType=survival \
             --eventTimeCol=${params.event_time_col} \
             --eventTimeBinSize=${params.event_time_bin} \
             --invNormalize=TRUE \
-            --nThreads=29 \
+            --memoryChunk=${use_mem} \
+            --nThreads=14 \
             --IsOverwriteVarianceRatioFile=TRUE > ${pheno}.log
         elif [ "${params.GPU}" = "OFF" ]; then
             echo "${cohort}-${pheno}"
@@ -503,6 +619,9 @@ process call_saige_step1_survival {
             --phenoFile=${pheno_file} \
             --phenoCol=${pheno} \
             ${covariate_args} \
+            ${vr_flag} \
+            --minMAFforGRM=${params.maf} \
+            --maxMissingRateforGRM=${params.geno} \
             --sampleIDColinphenoFile=${params.id_col} \
             --outputPrefix=${pheno} \
             --traitType=survival \
@@ -523,7 +642,7 @@ process call_saige_step1_survival {
 }
 
 process call_saige_step1_bin_with_sparse_GRM {
-    publishDir "${launchDir}/${cohort}/Saige_Step1/"
+    publishDir "${launchDir}/${cohort}/Saige_Step1/", enabled: {params.host != 'AOU'}
     machineType 'n2-standard-4'
     cpus 1
 
@@ -531,6 +650,7 @@ process call_saige_step1_bin_with_sparse_GRM {
         // variables
         tuple val(cohort), val(pheno), path(plink_set), path(samples), path(pheno_file)
         tuple path(sparse_grm), path(sparse_grm_samples)
+        val is_gene
     output:
         // variables
         tuple val(cohort), val(pheno), path("${pheno}.rda"), path("${pheno}.varianceRatio.txt")
@@ -539,6 +659,7 @@ process call_saige_step1_bin_with_sparse_GRM {
         covariate_args = get_covar_list_args(cohort,
             params.sex_strat_cohort_list.contains(cohort) ? params.sex_strat_cat_covars : params.cat_covars,
             params.sex_strat_cohort_list.contains(cohort) ? params.sex_strat_cont_covars : params.cont_covars)
+        vr_flag = is_gene ? '--isCateVarianceRatio=TRUE' : '--isCateVarianceRatio=FALSE'
         """
         echo "${cohort}-${pheno}"
         stdbuf -e0 -o0 Rscript ${params.step1_script} \
@@ -549,6 +670,7 @@ process call_saige_step1_bin_with_sparse_GRM {
          --phenoFile=${pheno_file} \
          --phenoCol=${pheno} \
          ${covariate_args} \
+         ${vr_flag} \
          --sampleIDColinphenoFile=${params.id_col} \
          --traitType=binary \
          --outputPrefix=${pheno} \
@@ -564,7 +686,7 @@ process call_saige_step1_bin_with_sparse_GRM {
 }
 
 process call_saige_step1_quant_with_sparse_GRM {
-    publishDir "${launchDir}/${cohort}/Saige_Step1/"
+    publishDir "${launchDir}/${cohort}/Saige_Step1/", enabled: {params.host != 'AOU'}
     machineType 'n2-standard-4'
     cpus 1
 
@@ -572,6 +694,7 @@ process call_saige_step1_quant_with_sparse_GRM {
         // variables
         tuple val(cohort), val(pheno), path(plink_set), path(samples), path(pheno_file)
         tuple path(sparse_grm), path(sparse_grm_samples)
+        val is_gene
     output:
         // variables
         tuple val(cohort), val(pheno), path("${pheno}.rda"), path("${pheno}.varianceRatio.txt")
@@ -580,6 +703,7 @@ process call_saige_step1_quant_with_sparse_GRM {
         covariate_args = get_covar_list_args(cohort,
             params.sex_strat_cohort_list.contains(cohort) ? params.sex_strat_cat_covars : params.cat_covars,
             params.sex_strat_cohort_list.contains(cohort) ? params.sex_strat_cont_covars : params.cont_covars)
+        vr_flag = is_gene ? '--isCateVarianceRatio=TRUE' : '--isCateVarianceRatio=FALSE'
         """
         echo "${cohort}-${pheno}"
         stdbuf -e0 -o0 Rscript ${params.step1_script} \
@@ -590,6 +714,7 @@ process call_saige_step1_quant_with_sparse_GRM {
          --phenoFile=${pheno_file} \
          --phenoCol=${pheno} \
          ${covariate_args} \
+         ${vr_flag} \
          --sampleIDColinphenoFile=${params.id_col} \
          --outputPrefix=${pheno} \
          --traitType=quantitative \
@@ -606,7 +731,7 @@ process call_saige_step1_quant_with_sparse_GRM {
 }
 
 process call_saige_step1_survival_with_sparse_GRM {
-    publishDir "${launchDir}/${cohort}/Saige_Step1/"
+    publishDir "${launchDir}/${cohort}/Saige_Step1/", enabled: {params.host != 'AOU'}
     machineType 'n2-standard-4'
     cpus 1
 
@@ -614,6 +739,7 @@ process call_saige_step1_survival_with_sparse_GRM {
         // variables
         tuple val(cohort), val(pheno), path(plink_set), path(samples), path(pheno_file)
         tuple path(sparse_grm), path(sparse_grm_samples)
+        val is_gene
     output:
         // variables
         tuple val(cohort), val(pheno), path("${pheno}.rda"), path("${pheno}.varianceRatio.txt")
@@ -622,6 +748,7 @@ process call_saige_step1_survival_with_sparse_GRM {
         covariate_args = get_covar_list_args(cohort,
             params.sex_strat_cohort_list.contains(cohort) ? params.sex_strat_cat_covars : params.cat_covars,
             params.sex_strat_cohort_list.contains(cohort) ? params.sex_strat_cont_covars : params.cont_covars)
+        vr_flag = is_gene ? '--isCateVarianceRatio=TRUE' : '--isCateVarianceRatio=FALSE'
         """
         echo "${cohort}-${pheno}"
         stdbuf -e0 -o0 Rscript ${params.step1_script} \
@@ -632,6 +759,7 @@ process call_saige_step1_survival_with_sparse_GRM {
          --phenoFile=${pheno_file} \
          --phenoCol=${pheno} \
          ${covariate_args} \
+         ${vr_flag} \
          --sampleIDColinphenoFile=${params.id_col} \
          --outputPrefix=${pheno} \
          --traitType=survival \
@@ -685,6 +813,7 @@ workflow SAIGE_STEP1 {
 
             if (IS_GENE) {
                 // call plink_qc for each cohort (gene version, samples rare variants)
+                //(cohort_plinkset, logs) = plink_qc_for_step1_saige_gene(cohort_sample_lists, use_step1_prefix, plink_inputs_tuple)
                 (cohort_plinkset, logs) = plink_qc_for_step1_saige_gene(cohort_sample_lists, use_step1_prefix, plink_inputs_tuple)
             }
             else {
@@ -736,25 +865,25 @@ workflow SAIGE_STEP1 {
         if (params.use_sparse_GRM) {
             sparse_grm_input = new Tuple(params.step1_sparse_grm, params.step1_sparse_grm_samples)
 
-            (step1_bin_output, logs) = call_saige_step1_bin_with_sparse_GRM(step1_bin_input, sparse_grm_input)
-            (step1_quant_output, logs) = call_saige_step1_quant_with_sparse_GRM(step1_quant_input, sparse_grm_input)
-            (step1_surival_output, logs) = call_saige_step1_survival_with_sparse_GRM(step1_survival_input, sparse_grm_input)
+            (step1_bin_output, logs) = call_saige_step1_bin_with_sparse_GRM(step1_bin_input, sparse_grm_input, IS_GENE)
+            (step1_quant_output, logs) = call_saige_step1_quant_with_sparse_GRM(step1_quant_input, sparse_grm_input, IS_GENE)
+            (step1_surival_output, logs) = call_saige_step1_survival_with_sparse_GRM(step1_survival_input, sparse_grm_input, IS_GENE)
         } else {
             if (params.host == 'DNAnexus') {
                 (step1_bin_output, logs) = dnanexus_skip_step1_bin(step1_bin_input)
             }
             //lpc or aou run
             else {
-                (step1_bin_output, logs) = call_saige_step1_bin(step1_bin_input)
+                (step1_bin_output, logs) = call_saige_step1_bin(step1_bin_input, IS_GENE)
             }
             //if (params.host == "DNAnexus") {
             //    (step1_bin_output, logs) = dnanexus_skip_step1_quant(step1_quant_input)
             //}
             //lpc or aou run
             //else{
-            (step1_quant_output, logs) = call_saige_step1_quant(step1_quant_input)
+            (step1_quant_output, logs) = call_saige_step1_quant(step1_quant_input, IS_GENE)
             //}
-            (step1_surival_output, logs) = call_saige_step1_survival(step1_survival_input)
+            (step1_surival_output, logs) = call_saige_step1_survival(step1_survival_input, IS_GENE)
         }
     emit:
         step1_bin_output
