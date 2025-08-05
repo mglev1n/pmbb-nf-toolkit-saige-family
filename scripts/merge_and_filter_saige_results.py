@@ -142,7 +142,7 @@ for f in input_files:
         f_no_gz = f.replace('.gz', '')
         f_no_suffix = f_no_gz.replace('.singleAssoc', '').replace('.txt', '')
         f_no_chr = '.'.join(f_no_suffix.split('.')[:-1])
-        f_no_cohort = f_no_chr.replace(cohort, '')
+        f_no_cohort = f_no_chr.replace(f'{cohort}.', '')
         f_pheno = f_no_cohort.split('/')[-1]
     else:
         f_pheno = args.pheno
@@ -156,13 +156,18 @@ for f in input_files:
 all = pd.concat(dfs)
 
 if is_gene_burden:
+    print("TRUE")
     counts_table = pd.read_csv(args.counts)
     counts_table = counts_table[counts_table['COHORT'] == cohort].set_index('PHENO')
     all[['N_case', 'N_ctrl', 'N']] = counts_table.reindex(all['phenotype'])[['Cases', 'Controls', 'N']].values
 
 # Make sure all results have total N
 if 'N' not in all.columns:
-    all['N'] = all[['N_case', 'N_ctrl']].sum(axis=1)
+    print(all.columns)
+    if 'N_case' and 'N_ctrl' in all.columns:
+        all['N'] = all[['N_case', 'N_ctrl']].sum(axis=1)
+    elif 'N_event' and  'N_censor' in all.columns:
+        all['N'] = all[['N_event', 'N_censor']].sum(axis=1)
 
 # Figure out the set of SAIGE columns that are in the results files
 use_cols = [c for c in ALL_SAIGE_COLS if c in all.columns]

@@ -77,12 +77,18 @@ mp = ManhattanPlot(sumstats, test_rows=None, title=plot_title)
 mp.load_data()
 
 mp.df['chromosome_noCHR'] = mp.df['chromosome'].astype(str).str.replace('chr', '').astype(int)
+mp.df['variant_id'] = mp.df['variant_id'].str.replace('_', ':')
+
 mp.clean_data(col_map={'chromosome_noCHR': '#CHROM', columns_map['POS']: 'POS', columns_map['MarkerID']: 'ID', columns_map['p.value']: 'P'})
+
+print(mp.df)
 
 if annot_file is not None:
     annot_df = pd.read_csv(annot_file)
     annot_df['ID'] = annot_df['Gene']
+    annot_df.iloc[:, 0] = annot_df.iloc[:, 0].str.replace('_', ':')
     mp.add_annotations(annot_df, extra_cols=['RSID'])
+
 
 mp.get_thinned_data()
 print(mp.thinned)
@@ -90,12 +96,16 @@ print(len(mp.thinned))
 
 annot_thresh = 5E-8 if np.any(mp.thinned['P'].min() < 5E-8) else np.nanquantile(mp.thinned['P'], 10 / len(mp.thinned))
 
+print(annot_thresh)
 
 mp.update_plotting_parameters(vertical=True, sig=annot_thresh if not np.any(mp.thinned['P'] < 5E-8) else 5E-8, 
                               sug=annot_thresh, annot_thresh=annot_thresh, merge_genes=True)
 
+print(mp.df)
+
 mp.full_plot(save=output_manhattan, rep_boost=False, extra_cols={
-             'beta':'BETA', 'RSID': 'RSID'}, number_cols=['BETA'], keep_chr_pos=False)
+             'beta':'BETA', 'RSID': 'RSID'}, number_cols=['BETA'], keep_chr_pos=False, with_table_bg = False, with_table_grid= False)
+
 plt.clf()
 
 print(f"Saved Manhattan plot to: {output_manhattan}")

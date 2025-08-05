@@ -10,6 +10,7 @@ def make_arg_parser():
     # Add non-optional list arguments for phenotypes
     parser.add_argument('-b', '--binPhenotypes', nargs='*', required=False, help='List of phenotypes')
     parser.add_argument('-q', '--quantPhenotypes', nargs='*', required=False, help='List of phenotypes')
+    parser.add_argument('-t', '--survivalPhenotypes', nargs='*', required=False, help='List of phenotypes')
     
     # Add a non-optional list argument for cohorts
     parser.add_argument('-c', '--cohorts', nargs='+', required=True, help='List of cohorts')
@@ -35,6 +36,7 @@ args = make_arg_parser().parse_args()
 cohorts = args.cohorts
 bin_phenos = args.binPhenotypes
 quant_phenos = args.quantPhenotypes
+survival_phenos = args.survivalPhenotypes
 step1_fam = args.step1Fam
 exome_fam = args.exomeFam
 output_dir = args.outDir
@@ -73,6 +75,15 @@ for c in cohorts:
         quant_pheno_info['COHORT'] = c
         pheno_info.append(quant_pheno_info)
 
+    if len(survival_phenos) > 0:
+        survival_pheno_info = pheno_covars.loc[keep_samples, survival_phenos].apply(lambda x: x.value_counts(), result_type='expand').transpose().rename(columns={0: 'Controls', 1: 'Cases'})
+        survival_pheno_info['N'] = pheno_covars.loc[keep_samples, survival_phenos].count()
+        survival_pheno_info['Prevalence'] = pheno_covars.loc[keep_samples, survival_phenos].mean()
+        survival_pheno_info.index.name = 'PHENO'
+        survival_pheno_info = survival_pheno_info.reset_index()
+        survival_pheno_info['COHORT'] = c
+        pheno_info.append(survival_pheno_info)
+
     subDF = pheno_covars.loc[keep_samples].copy()
     subDF['COHORT'] = c
     subDFs.append(subDF)
@@ -90,7 +101,7 @@ for p in quant_phenos:
         outfile=f'{output_dir}/{p}.violinplot.png'
     else:
         outfile=f'{p}.violinplot.png'
-    plt.savefig(outfile)
+    plt.savefig(outfile,bbox_inches='tight')
     plt.clf()
 
 for p, subDF in pheno_info.groupby('PHENO'):

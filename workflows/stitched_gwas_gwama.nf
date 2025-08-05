@@ -1,6 +1,6 @@
 nextflow.enable.dsl = 2
 
-include {SAIGE_GWAS} from './workflows/saige_gwas.nf'
+include {SAIGE_GWAS} from './saige_gwas.nf'
 include {GWAMA_META} from './gwama_meta.nf'
 
 workflow {

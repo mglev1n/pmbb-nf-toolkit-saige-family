@@ -2,6 +2,10 @@
 This is a collection of SAIGE Step 2 processes
 */
 
+include {
+    paramToList
+} from '../processes/saige_helpers.nf'
+
 process filter_snps_plink {
     publishDir "${launchDir}/Filtered_Files/"
     machineType 'n2-standard-4'
@@ -13,9 +17,9 @@ process filter_snps_plink {
     shell:
         """
         plink --bfile ${plink_set[0].toString().split('/')[-1].replace('.bed', '')} \
-        --extract range ${snp_list_file} \
-        --make-bed \
-        --out phewas_input.chr${chr}
+          --extract range ${snp_list_file} \
+          --make-bed \
+          --out phewas_input.chr${chr}
         """
     stub:
         """
@@ -24,6 +28,11 @@ process filter_snps_plink {
         touch phewas_input.chr${chr}.fam
         """
 }
+
+
+
+
+
 
 process filter_snps_bgen {
     publishDir "${launchDir}/Filtered_Files/"
@@ -41,7 +50,8 @@ process filter_snps_bgen {
         if test -f phewas_input.chr${chr}.bgen; then
             ${params.my_bgenix} -g phewas_input.chr${chr}.bgen -index -clobber
         else
-            echo "${chr} returns no variants Please check snp list to match IDs on chromosome ${chr} or remove from chromosome list"
+            { echo "${chr} returns no variants Please check snp list to match IDs on chromosome ${chr} or remove from chromosome list" ; exit ; }
+            
         fi
 
         ${params.my_bgenix} -g phewas_input.chr${chr}.bgen -index -clobber
@@ -54,10 +64,15 @@ process filter_snps_bgen {
         """
 }
 
+
 process call_saige_step2_PLINK_binary {
     errorStrategy 'retry'
     publishDir "${launchDir}/${cohort_dir}/Saige_Step2_Results/"
     machineType 'n2-standard-4'
+    disk {
+        def fileSizeGb = plink_bed.size() / (1024 ** 3)
+        return "${50 + fileSizeGb} GB"
+    }
     input:
         // variables
         tuple val(cohort_dir), val(pheno), path(step1_rda), path(step1_var), val(chr)
@@ -65,26 +80,175 @@ process call_saige_step2_PLINK_binary {
     output:
         tuple val(cohort_dir), val(pheno), val(chr), path("${cohort_dir}.${pheno}.${chr}.txt.gz")
         tuple val(cohort_dir), val(pheno), val(chr), path("${cohort_dir}.${pheno}.${chr}.txt.gz")
-    shell:
+    script:
+        def stripped_chr = chr.contains('_') ? chr.toString().split('_')[0] : chr
         """
+        #!/bin/bash
+
+        # Input file passed as an argument
+        
+        # Read the first line and extract the first column
+        first_column=\$(head -n1 ${plink_bim} | cut -f1)
+
+        # Initialize variables
+        contains_chr=false
+        contains_leading_zeros=false
+        chrprefix=""
+        iszero=""
+        
+
+        # Check for "chr"
+        if [[ "\$first_column" == *"chr"* ]]; then
+            contains_chr=true
+        fi
+
+        # Check for leading zeros and numeric values
+        if [[ "\$first_column" =~ ^0[0-9]+ ]]; then
+            contains_leading_zeros=true
+        fi
+
+        # Determine the chromosome prefix and leading zero
+        if [[ "\$contains_chr" == true ]]; then
+            chrprefix="chr"
+        else
+            chrprefix=""
+        fi
+
+        # Extract the numeric part of the chromosome, assuming it follows "chr" (if applicable)
+        if [[ "\$first_column" =~ [0-9]+ ]]; then
+            chr="\${first_column//[^0-9]/}"  # Extract only the digits
+        else
+            chr="0"  # Default value if no valid chromosome number is found
+        fi
+
+        # Check if the chromosome is less than 10 and leading zeros are present
+        if [[ "\$contains_leading_zeros" == true && ${stripped_chr} -lt 10 ]]; then
+            iszero="0"
+        else
+            iszero=""
+        fi
+
+        # Construct the final chromosome string
+        chrom="\${chrprefix}\${iszero}${stripped_chr}"
+
+        # Output the chromosome string to a file
+        echo "\$chrom" > chrom.txt
+
+        # Export the chromosome variable for Nextflow
+        export CHROM_VAR="\$chrom"
+
         stdbuf -e0 -o0 Rscript ${params.step2_script} \
-         --bedFile=${plink_bed} \
-         --bimFile=${plink_bim} \
-         --famFile=${plink_fam} \
-         --chrom=${chr} \
-         --is_output_moreDetails=TRUE \
-         --minMAF=${params.min_maf} \
-         --minMAC=${params.min_mac} \
-         --GMMATmodelFile=${step1_rda} \
-         --varianceRatioFile=${step1_var} \
-         --is_Firth_beta=TRUE \
-         --pCutoffforFirth=0.05 \
-         --LOCO=${params.LOCO} \
-         --SAIGEOutputFile=${cohort_dir}.${pheno}.${chr}.txt \
-           > ${cohort_dir}.${pheno}.${chr}.txt
+            --bedFile=${plink_bed} \
+            --bimFile=${plink_bim} \
+            --famFile=${plink_fam} \
+            --chrom=\$CHROM_VAR \
+            --is_output_moreDetails=TRUE \
+            --minMAF=${params.min_maf} \
+            --minMAC=${params.min_mac} \
+            --GMMATmodelFile=${step1_rda} \
+            --varianceRatioFile=${step1_var} \
+            --is_Firth_beta=TRUE \
+            --pCutoffforFirth=0.05 \
+            --LOCO=${params.LOCO} \
+            --SAIGEOutputFile=${cohort_dir}.${pheno}.${chr}.txt \
+            > ${cohort_dir}.${pheno}.${chr}.txt
+
+            gzip -9 ${cohort_dir}.${pheno}.${chr}.txt
+
+            """
+        stub:
+            """
+            touch ${cohort_dir}.${pheno}.${chr}.txt.gz
+            touch ${cohort_dir}.${pheno}.${chr}.log
+            """
+}
+
+process call_saige_step2_PLINK_quant {
+    publishDir "${launchDir}/${cohort_dir}/Saige_Step2_Results/"
+    machineType 'n2-standard-4'
+    disk {
+        def fileSizeGb = plink_bed.size() / (1024 ** 3)
+        return "${50 + fileSizeGb} GB"
+    }
+    input:
+        // variables
+        tuple val(cohort_dir), val(pheno), path(step1_rda), path(step1_var), val(chr)
+        tuple path(plink_bed), path(plink_bim), path(plink_fam)
+    output:
+        tuple val(cohort_dir), val(pheno), val(chr), path("${cohort_dir}.${pheno}.${chr}.txt.gz")
+        tuple val(cohort_dir), val(pheno), val(chr), path("${cohort_dir}.${pheno}.${chr}.log")
+    script:
+        def stripped_chr = chr.contains('_') ? chr.toString().split('_')[0] : chr
+        """
+        #!/bin/bash
+
+        # Input file passed as an argument
+        
+        # Read the first line and extract the first column
+        first_column=\$(head -n1 ${plink_bim} | cut -f1)
+
+        # Initialize variables
+        contains_chr=false
+        contains_leading_zeros=false
+        chrprefix=""
+        iszero=""
+        
+
+        # Check for "chr"
+        if [[ "\$first_column" == *"chr"* ]]; then
+            contains_chr=true
+        fi
+
+        # Check for leading zeros and numeric values
+        if [[ "\$first_column" =~ ^0[0-9]+ ]]; then
+            contains_leading_zeros=true
+        fi
+
+        # Determine the chromosome prefix and leading zero
+        if [[ "\$contains_chr" == true ]]; then
+            chrprefix="chr"
+        else
+            chrprefix=""
+        fi
+
+        # Extract the numeric part of the chromosome, assuming it follows "chr" (if applicable)
+        if [[ "\$first_column" =~ [0-9]+ ]]; then
+            chr="\${first_column//[^0-9]/}"  # Extract only the digits
+        else
+            chr="0"  # Default value if no valid chromosome number is found
+        fi
+
+        # Check if the chromosome is less than 10 and leading zeros are present
+        if [[ "\$contains_leading_zeros" == true && ${stripped_chr} -lt 10 ]]; then
+            iszero="0"
+        else
+            iszero=""
+        fi
+
+        # Construct the final chromosome string
+        chrom="\${chrprefix}\${iszero}${stripped_chr}"
+
+        # Output the chromosome string to a file
+        echo "\$chrom" > chrom.txt
+
+        # Export the chromosome variable for Nextflow
+        export CHROM_VAR="\$chrom"
+
+        stdbuf -e0 -o0 Rscript ${params.step2_script} \
+        --bedFile=${plink_bed} \
+        --bimFile=${plink_bim} \
+        --famFile=${plink_fam} \
+        --chrom=\$CHROM_VAR \
+        --GMMATmodelFile=${step1_rda} \
+        --varianceRatioFile=${step1_var} \
+        --SAIGEOutputFile=${cohort_dir}.${pheno}.${chr}.txt \
+        --minMAF=${params.min_maf} \
+        --minMAC=${params.min_mac} \
+        --LOCO=${params.LOCO} \
+        --is_output_moreDetails=TRUE \
+            > ${cohort_dir}.${pheno}.${chr}.log
 
         gzip -9 ${cohort_dir}.${pheno}.${chr}.txt
-
         """
     stub:
         """
@@ -93,43 +257,113 @@ process call_saige_step2_PLINK_binary {
         """
 }
 
-process call_saige_step2_PLINK_quant {
+process call_saige_step2_PLINK_survival {
+    errorStrategy 'retry'
     publishDir "${launchDir}/${cohort_dir}/Saige_Step2_Results/"
     machineType 'n2-standard-4'
+    disk {
+        def fileSizeGb = plink_bed.size() / (1024 ** 3)
+        return "${50 + fileSizeGb} GB"
+    }
     input:
         // variables
         tuple val(cohort_dir), val(pheno), path(step1_rda), path(step1_var), val(chr)
         tuple path(plink_bed), path(plink_bim), path(plink_fam)
     output:
         tuple val(cohort_dir), val(pheno), val(chr), path("${cohort_dir}.${pheno}.${chr}.txt.gz")
-        tuple val(cohort_dir), val(pheno), val(chr), path("${cohort_dir}.${pheno}.${chr}.log")
-    shell:
+        tuple val(cohort_dir), val(pheno), val(chr), path("${cohort_dir}.${pheno}.${chr}.txt.gz")
+    script:
+        def stripped_chr = chr.contains('_') ? chr.toString().split('_')[0] : chr
         """
-        stdbuf -e0 -o0 Rscript ${params.step2_script} \
-         --bedFile=${plink_bed} \
-         --bimFile=${plink_bim} \
-         --famFile=${plink_fam} \
-         --chrom=${chr} \
-         --GMMATmodelFile=${step1_rda} \
-         --varianceRatioFile=${step1_var} \
-         --SAIGEOutputFile=${cohort_dir}.${pheno}.${chr}.txt \
-         --minMAF=${params.min_maf} \
-         --minMAC=${params.min_mac} \
-         --LOCO=${params.LOCO} \
-         --is_output_moreDetails=TRUE \
-           > ${cohort_dir}.${pheno}.${chr}.log
+        #!/bin/bash
 
-        gzip -9 ${cohort_dir}.${pheno}.${chr}.txt
-        """
-    stub:
-        """
-        touch ${cohort_dir}.${pheno}.${chr}.txt
-        touch ${cohort_dir}.${pheno}.${chr}.log
-        """
+        # Input file passed as an argument
+        
+        # Read the first line and extract the first column
+        first_column=\$(head -n1 ${plink_bim} | cut -f1)
+
+        # Initialize variables
+        contains_chr=false
+        contains_leading_zeros=false
+        chrprefix=""
+        iszero=""
+        
+
+        # Check for "chr"
+        if [[ "\$first_column" == *"chr"* ]]; then
+            contains_chr=true
+        fi
+
+        # Check for leading zeros and numeric values
+        if [[ "\$first_column" =~ ^0[0-9]+ ]]; then
+            contains_leading_zeros=true
+        fi
+
+        # Determine the chromosome prefix and leading zero
+        if [[ "\$contains_chr" == true ]]; then
+            chrprefix="chr"
+        else
+            chrprefix=""
+        fi
+
+        # Extract the numeric part of the chromosome, assuming it follows "chr" (if applicable)
+        if [[ "\$first_column" =~ [0-9]+ ]]; then
+            chr="\${first_column//[^0-9]/}"  # Extract only the digits
+        else
+            chr="0"  # Default value if no valid chromosome number is found
+        fi
+
+        # Check if the chromosome is less than 10 and leading zeros are present
+        if [[ "\$contains_leading_zeros" == true && ${stripped_chr} -lt 10 ]]; then
+            iszero="0"
+        else
+            iszero=""
+        fi
+
+        # Construct the final chromosome string
+        chrom="\${chrprefix}\${iszero}${stripped_chr}"
+
+        # Output the chromosome string to a file
+        echo "\$chrom" > chrom.txt
+
+        # Export the chromosome variable for Nextflow
+        export CHROM_VAR="\$chrom"
+
+        stdbuf -e0 -o0 Rscript ${params.step2_script} \
+            --bedFile=${plink_bed} \
+            --bimFile=${plink_bim} \
+            --famFile=${plink_fam} \
+            --chrom=\$CHROM_VAR \
+            --is_output_moreDetails=TRUE \
+            --minMAF=${params.min_maf} \
+            --minMAC=${params.min_mac} \
+            --GMMATmodelFile=${step1_rda} \
+            --varianceRatioFile=${step1_var} \
+            --is_Firth_beta=TRUE \
+            --pCutoffforFirth=0.05 \
+            --LOCO=${params.LOCO} \
+            --SAIGEOutputFile=${cohort_dir}.${pheno}.${chr}.txt \
+            > ${cohort_dir}.${pheno}.${chr}.txt
+
+            gzip -9 ${cohort_dir}.${pheno}.${chr}.txt
+
+            """
+        stub:
+            """
+            touch ${cohort_dir}.${pheno}.${chr}.txt.gz
+            touch ${cohort_dir}.${pheno}.${chr}.log
+            """
 }
 
 process call_saige_step2_BGEN_binary {
     publishDir "${launchDir}/${cohort_dir}/Saige_Step2_Results/"
+    memory = '100 GB'
+    machineType 'n2-standard-4'
+    disk {
+        def fileSizeGb = bgenFile.size() / (1024 ** 3)
+        return "${50 + fileSizeGb} GB"
+    }
+
     input:
         tuple val(cohort_dir), val(pheno), path(step1_rda), path(step1_var), val(chr)
         tuple path(bgenFile), path(bgenFileIndex)
@@ -138,6 +372,7 @@ process call_saige_step2_BGEN_binary {
         tuple val(cohort_dir), val(pheno), val(chr), path("${cohort_dir}.${pheno}.${chr}.txt.gz")
         tuple val(cohort_dir), val(pheno), val(chr), path("${cohort_dir}.${pheno}.${chr}.log")
     script:
+        def stripped_chr = chr.contains('_') ? chr.toString().split('_')[0] : chr
         """
         # Extract chromosome information
         ${params.my_bgenix} -g ${bgenFile} -i ${bgenFileIndex} -incl-range -list | head | tail -n +3 | awk -F"\t" 'NR==3{print \$3}' > chrs.txt
@@ -172,34 +407,34 @@ process call_saige_step2_BGEN_binary {
             chrprefix=''
         fi
 
-        if [[ \$contains_leading_zeros == true && ${chr} -lt 10 ]]; then
+        if [[ \$contains_leading_zeros == true && ${stripped_chr} -lt 10 ]]; then
             iszero=0
         else
             iszero=""
         fi
 
-        chrom="\${chrprefix}\${iszero}${chr}"
+        chrom="\${chrprefix}\${iszero}${stripped_chr}"
         echo "\$chrom" > chrom.txt
 
         export CHROM_VAR=\$chrom
 
         # Call the R script with the evaluated chrom variable
         stdbuf -e0 -o0 Rscript ${params.step2_script} \
-         --bgenFile=${bgenFile} \
-         --bgenFileIndex=${bgenFileIndex} \
-         --AlleleOrder=ref-first \
-         --sampleFile=${bgen_sample_file} \
-         --chrom=\$CHROM_VAR \
-         --minMAF=${params.min_maf} \
-         --minMAC=${params.min_mac} \
-         --GMMATmodelFile=${step1_rda} \
-         --varianceRatioFile=${step1_var} \
-         --is_Firth_beta=TRUE \
-         --pCutoffforFirth=${params.firth_cutoff} \
-         --LOCO=${params.LOCO} \
-         --is_output_moreDetails=TRUE \
-         --SAIGEOutputFile=${cohort_dir}.${pheno}.${chr}.txt \
-         > ${cohort_dir}.${pheno}.${chr}.log
+            --bgenFile=${bgenFile} \
+            --bgenFileIndex=${bgenFileIndex} \
+            --AlleleOrder=ref-first \
+            --sampleFile=${bgen_sample_file} \
+            --chrom=\$CHROM_VAR \
+            --minMAF=${params.min_maf} \
+            --minMAC=${params.min_mac} \
+            --GMMATmodelFile=${step1_rda} \
+            --varianceRatioFile=${step1_var} \
+            --is_Firth_beta=TRUE \
+            --pCutoffforFirth=${params.firth_cutoff} \
+            --LOCO=${params.LOCO} \
+            --is_output_moreDetails=TRUE \
+            --SAIGEOutputFile=${cohort_dir}.${pheno}.${chr}.txt \
+        > ${cohort_dir}.${pheno}.${chr}.log
 
         gzip -9 ${cohort_dir}.${pheno}.${chr}.txt
         """
@@ -213,6 +448,10 @@ process call_saige_step2_BGEN_binary {
 process call_saige_step2_BGEN_quant {
     publishDir "${launchDir}/${cohort_dir}/Saige_Step2_Results/"
     machineType 'n2-standard-4'
+    disk {
+        def fileSizeGb = bgenFile.size() / (1024 ** 3)
+        return "${50 + fileSizeGb} GB"
+    }
     input:
         // variables
         tuple val(cohort_dir), val(pheno), path(step1_rda), path(step1_var), val(chr)
@@ -225,6 +464,8 @@ process call_saige_step2_BGEN_quant {
         tuple val(cohort_dir), val(pheno), val(chr), path("${cohort_dir}.${pheno}.${chr}.txt.gz")
         tuple val(cohort_dir), val(pheno), val(chr), path("${cohort_dir}.${pheno}.${chr}.log")
     script:
+        def stripped_chr = chr.contains('_') ? chr.toString().split('_')[0] : chr
+
         """
         # Extract chromosome information
         ${params.my_bgenix} -g ${bgenFile} -i ${bgenFileIndex} -incl-range -list | head | tail -n +3 | awk -F"\t" 'NR==3{print \$3}' > chrs.txt
@@ -259,13 +500,13 @@ process call_saige_step2_BGEN_quant {
             chrprefix=''
         fi
 
-        if [[ \$contains_leading_zeros == true && ${chr} -lt 10 ]]; then
+        if [[ \$contains_leading_zeros == true && ${stripped_chr} -lt 10 ]]; then
             iszero=0
         else
             iszero=""
         fi
 
-        chrom="\${chrprefix}\${iszero}${chr}"
+        chrom="\${chrprefix}\${iszero}${stripped_chr}"
         echo "\$chrom" > chrom.txt
 
         export CHROM_VAR=\$chrom
@@ -295,22 +536,25 @@ process call_saige_step2_BGEN_quant {
         """
 }
 
-process call_saige_step2_BGEN_binary_with_sparse_GRM {
+process call_saige_step2_BGEN_survival {
     publishDir "${launchDir}/${cohort_dir}/Saige_Step2_Results/"
     machineType 'n2-standard-4'
+    disk {
+        def fileSizeGb = bgenFile.size() / (1024 ** 3)
+        return "${50 + fileSizeGb} GB"
+    }
+    
     input:
-        // variables
         tuple val(cohort_dir), val(pheno), path(step1_rda), path(step1_var), val(chr)
-        //inputs
         tuple path(bgenFile), path(bgenFileIndex)
         path bgen_sample_file
-        tuple path(sparse_grm), path(sparse_grm_samples)
     output:
         tuple val(cohort_dir), val(pheno), val(chr), path("${cohort_dir}.${pheno}.${chr}.txt.gz")
         tuple val(cohort_dir), val(pheno), val(chr), path("${cohort_dir}.${pheno}.${chr}.log")
-    shell:
+    script:
+        def stripped_chr = chr.contains('_') ? chr.toString().split('_')[0] : chr
         """
-              # Extract chromosome information
+        # Extract chromosome information
         ${params.my_bgenix} -g ${bgenFile} -i ${bgenFileIndex} -incl-range -list | head | tail -n +3 | awk -F"\t" 'NR==3{print \$3}' > chrs.txt
 
         file='chrs.txt'
@@ -343,13 +587,104 @@ process call_saige_step2_BGEN_binary_with_sparse_GRM {
             chrprefix=''
         fi
 
-        if [[ \$contains_leading_zeros == true && ${chr} -lt 10 ]]; then
+        if [[ \$contains_leading_zeros == true && ${stripped_chr} -lt 10 ]]; then
             iszero=0
         else
             iszero=""
         fi
 
-        chrom="\${chrprefix}\${iszero}${chr}"
+        chrom="\${chrprefix}\${iszero}${stripped_chr}"
+        echo "\$chrom" > chrom.txt
+
+        export CHROM_VAR=\$chrom
+
+        # Call the R script with the evaluated chrom variable
+        stdbuf -e0 -o0 Rscript ${params.step2_script} \
+            --bgenFile=${bgenFile} \
+            --bgenFileIndex=${bgenFileIndex} \
+            --AlleleOrder=ref-first \
+            --sampleFile=${bgen_sample_file} \
+            --chrom=\$CHROM_VAR \
+            --minMAF=${params.min_maf} \
+            --minMAC=${params.min_mac} \
+            --GMMATmodelFile=${step1_rda} \
+            --varianceRatioFile=${step1_var} \
+            --is_Firth_beta=TRUE \
+            --pCutoffforFirth=${params.firth_cutoff} \
+            --LOCO=${params.LOCO} \
+            --is_output_moreDetails=TRUE \
+            --SAIGEOutputFile=${cohort_dir}.${pheno}.${chr}.txt \
+        > ${cohort_dir}.${pheno}.${chr}.log
+
+        gzip -9 ${cohort_dir}.${pheno}.${chr}.txt
+        """
+    stub:
+        """
+        touch ${cohort_dir}.${pheno}.${chr}.txt.gz
+        touch ${cohort_dir}.${pheno}.${chr}.log
+        """
+}
+
+process call_saige_step2_BGEN_binary_with_sparse_GRM {
+    publishDir "${launchDir}/${cohort_dir}/Saige_Step2_Results/"
+    machineType 'n2-standard-4'
+    disk {
+        def fileSizeGb = bgenFile.size() / (1024 ** 3)
+        return "${50 + fileSizeGb} GB"
+    }
+    input:
+        // variables
+        tuple val(cohort_dir), val(pheno), path(step1_rda), path(step1_var), val(chr)
+        //inputs
+        tuple path(bgenFile), path(bgenFileIndex)
+        path bgen_sample_file
+        tuple path(sparse_grm), path(sparse_grm_samples)
+    output:
+        tuple val(cohort_dir), val(pheno), val(chr), path("${cohort_dir}.${pheno}.${chr}.txt.gz")
+        tuple val(cohort_dir), val(pheno), val(chr), path("${cohort_dir}.${pheno}.${chr}.log")
+    script:
+        def stripped_chr = chr.contains('_') ? chr.toString().split('_')[0] : chr
+        """
+        # Extract chromosome information
+        ${params.my_bgenix} -g ${bgenFile} -i ${bgenFileIndex} -incl-range -list | head | tail -n +3 | awk -F"\t" 'NR==3{print \$3}' > chrs.txt
+
+        file='chrs.txt'
+        f1=0
+        f2=0
+        contains_chr=false
+        contains_leading_zeros=false
+
+        while IFS= read -r line; do
+            if [[ "\$line" =~ chr ]]; then
+                contains_chr=true
+                f1=1
+            fi
+            if [[ "\$line" =~ 0[0-9] ]]; then
+                contains_leading_zeros=true
+                f2=1
+            fi
+        done < "\$file"
+
+        if [[ \$f1 -ne 1 ]]; then
+            contains_chr=false
+        fi
+        if [[ \$f2 -ne 1 ]]; then
+            contains_leading_zeros=false
+        fi
+
+        if [[ \$contains_chr == true ]]; then
+            chrprefix="chr"
+        else
+            chrprefix=''
+        fi
+
+        if [[ \$contains_leading_zeros == true && ${stripped_chr} -lt 10 ]]; then
+            iszero=0
+        else
+            iszero=""
+        fi
+
+        chrom="\${chrprefix}\${iszero}${stripped_chr}"
         echo "\$chrom" > chrom.txt
 
         export CHROM_VAR=\$chrom
@@ -386,6 +721,10 @@ process call_saige_step2_BGEN_binary_with_sparse_GRM {
 process call_saige_step2_BGEN_quant_with_sparse_GRM {
     publishDir "${launchDir}/${cohort_dir}/Saige_Step2_Results/"
     machineType 'n2-standard-4'
+    disk {
+        def fileSizeGb = bgenFile.size() / (1024 ** 3)
+        return "${50 + fileSizeGb} GB"
+    }
     input:
         // variables
         tuple val(cohort_dir), val(pheno), path(step1_rda), path(step1_var), val(chr)
@@ -398,7 +737,8 @@ process call_saige_step2_BGEN_quant_with_sparse_GRM {
     output:
         tuple val(cohort_dir), val(pheno), val(chr), path("${cohort_dir}.${pheno}.${chr}.txt.gz")
         tuple val(cohort_dir), val(pheno), val(chr), path("${cohort_dir}.${pheno}.${chr}.log")
-    shell:
+    script:
+        def stripped_chr = chr.contains('_') ? chr.toString().split('_')[0] : chr
     """
         # Extract chromosome information
         ${params.my_bgenix} -g ${bgenFile} -i ${bgenFileIndex} -incl-range -list | head | tail -n +3 | awk -F"\t" 'NR==3{print \$3}' > chrs.txt
@@ -433,13 +773,13 @@ process call_saige_step2_BGEN_quant_with_sparse_GRM {
             chrprefix=''
         fi
 
-        if [[ \$contains_leading_zeros == true && ${chr} -lt 10 ]]; then
+        if [[ \$contains_leading_zeros == true && ${stripped_chr} -lt 10 ]]; then
             iszero=0
         else
             iszero=""
         fi
 
-        chrom="\${chrprefix}\${iszero}${chr}"
+        chrom="\${chrprefix}\${iszero}${stripped_chr}"
         echo "\$chrom" > chrom.txt
 
         export CHROM_VAR=\$chrom
@@ -469,9 +809,107 @@ process call_saige_step2_BGEN_quant_with_sparse_GRM {
         """
 }
 
+process call_saige_step2_BGEN_survival_with_sparse_GRM {
+    publishDir "${launchDir}/${cohort_dir}/Saige_Step2_Results/"
+    machineType 'n2-standard-4'
+    disk {
+        def fileSizeGb = bgenFile.size() / (1024 ** 3)
+        return "${50 + fileSizeGb} GB"
+    }
+    input:
+        // variables
+        tuple val(cohort_dir), val(pheno), path(step1_rda), path(step1_var), val(chr)
+        //inputs
+        tuple path(bgenFile), path(bgenFileIndex)
+        path bgen_sample_file
+        tuple path(sparse_grm), path(sparse_grm_samples)
+    output:
+        tuple val(cohort_dir), val(pheno), val(chr), path("${cohort_dir}.${pheno}.${chr}.txt.gz")
+        tuple val(cohort_dir), val(pheno), val(chr), path("${cohort_dir}.${pheno}.${chr}.log")
+    script:
+        def stripped_chr = chr.contains('_') ? chr.toString().split('_')[0] : chr
+
+        """
+        # Extract chromosome information
+        ${params.my_bgenix} -g ${bgenFile} -i ${bgenFileIndex} -incl-range -list | head | tail -n +3 | awk -F"\t" 'NR==3{print \$3}' > chrs.txt
+
+        file='chrs.txt'
+        f1=0
+        f2=0
+        contains_chr=false
+        contains_leading_zeros=false
+
+        while IFS= read -r line; do
+            if [[ "\$line" =~ chr ]]; then
+                contains_chr=true
+                f1=1
+            fi
+            if [[ "\$line" =~ 0[0-9] ]]; then
+                contains_leading_zeros=true
+                f2=1
+            fi
+        done < "\$file"
+
+        if [[ \$f1 -ne 1 ]]; then
+            contains_chr=false
+        fi
+        if [[ \$f2 -ne 1 ]]; then
+            contains_leading_zeros=false
+        fi
+
+        if [[ \$contains_chr == true ]]; then
+            chrprefix="chr"
+        else
+            chrprefix=''
+        fi
+
+        if [[ \$contains_leading_zeros == true && ${stripped_chr} -lt 10 ]]; then
+            iszero=0
+        else
+            iszero=""
+        fi
+
+        chrom="\${chrprefix}\${iszero}${stripped_chr}"
+        echo "\$chrom" > chrom.txt
+
+        export CHROM_VAR=\$chrom
+
+        stdbuf -e0 -o0 Rscript ${params.step2_script} \
+         --sparseGRMFile=${sparse_grm} \
+         --sparseGRMSampleIDFile=${sparse_grm_samples} \
+         --bgenFile=${bgenFile} \
+         --bgenFileIndex=${bgenFileIndex} \
+         --AlleleOrder=ref-first \
+         --sampleFile=${bgen_sample_file}
+         --chrom=\$CHROM_VAR \
+         --minMAF=${params.min_maf} \
+         --minMAC=${params.min_mac} \
+         --GMMATmodelFile=${step1_rda} \
+         --varianceRatioFile=${step1_var} \
+         --is_Firth_beta=TRUE \
+         --pCutoffforFirth=${params.firth_cutoff} \
+         --LOCO=${params.LOCO} \
+         --is_output_moreDetails=TRUE \
+         --SAIGEOutputFile=${cohort_dir}.${pheno}.${chr}.txt \
+           > ${cohort_dir}.${pheno}.${chr}.log
+
+        gzip -9 ${cohort_dir}.${pheno}.${chr}.txt
+        """
+
+    stub:
+        """
+        touch ${cohort_dir}.${pheno}.${chr}.txt.gz
+        touch ${cohort_dir}_${pheno}.${chr}.log
+        """
+}
+
 process call_saige_step2_PLINK_binary_with_sparse_GRM {
     publishDir "${launchDir}/${cohort_dir}/Saige_Step2_Results/"
     machineType 'n2-standard-4'
+    disk {
+        def fileSizeGb = plink_bed.size() / (1024 ** 3)
+        return "${50 + fileSizeGb} GB"
+    }
     input:
         // variables
         tuple val(cohort_dir), val(pheno), path(step1_rda), path(step1_var), val(chr)
@@ -480,27 +918,83 @@ process call_saige_step2_PLINK_binary_with_sparse_GRM {
     output:
         tuple val(cohort_dir), val(pheno), val(chr), path("${cohort_dir}.${pheno}.${chr}.txt.gz")
         tuple val(cohort_dir), val(pheno), val(chr), path("${cohort_dir}.${pheno}.${chr}.log")
-    shell:
-        """
-        stdbuf -e0 -o0 Rscript ${params.step2_script} \
-         --sparseGRMFile=${sparse_grm} \
-         --sparseGRMSampleIDFile=${sparse_grm_samples} \
-         --bedFile=${plink_bed} \
-         --bimFile=${plink_bim} \
-         --famFile=${plink_fam} \
-         --chrom=${chr} \
-         --minMAF=${params.min_maf} \
-         --minMAC=${params.min_mac} \
-         --GMMATmodelFile=${step1_rda} \
-         --varianceRatioFile=${step1_var} \
-         --is_Firth_beta=TRUE \
-         --pCutoffforFirth=0.05 \
-         --LOCO=${params.LOCO} \
-         --is_output_moreDetails=TRUE \
-         --SAIGEOutputFile=${cohort_dir}.${pheno}.${chr}.txt \
-           > ${cohort_dir}.${pheno}.${chr}.log
+    script:
+        def stripped_chr = chr.contains('_') ? chr.toString().split('_')[0] : chr
 
-         gzip -9 ${cohort_dir}.${pheno}.${chr}.txt
+        """
+        #!/bin/bash
+
+        # Input file passed as an argument
+        
+        # Read the first line and extract the first column
+        first_column=\$(head -n1 ${plink_bim} | cut -f1)
+
+        # Initialize variables
+        contains_chr=false
+        contains_leading_zeros=false
+        chrprefix=""
+        iszero=""
+        
+
+        # Check for "chr"
+        if [[ "\$first_column" == *"chr"* ]]; then
+            contains_chr=true
+        fi
+
+        # Check for leading zeros and numeric values
+        if [[ "\$first_column" =~ ^0[0-9]+ ]]; then
+            contains_leading_zeros=true
+        fi
+
+        # Determine the chromosome prefix and leading zero
+        if [[ "\$contains_chr" == true ]]; then
+            chrprefix="chr"
+        else
+            chrprefix=""
+        fi
+
+        # Extract the numeric part of the chromosome, assuming it follows "chr" (if applicable)
+        if [[ "\$first_column" =~ [0-9]+ ]]; then
+            chr="\${first_column//[^0-9]/}"  # Extract only the digits
+        else
+            chr="0"  # Default value if no valid chromosome number is found
+        fi
+
+        # Check if the chromosome is less than 10 and leading zeros are present
+        if [[ "\$contains_leading_zeros" == true && ${stripped_chr} -lt 10 ]]; then
+            iszero="0"
+        else
+            iszero=""
+        fi
+
+        # Construct the final chromosome string
+        chrom="\${chrprefix}\${iszero}${stripped_chr}"
+
+        # Output the chromosome string to a file
+        echo "\$chrom" > chrom.txt
+
+        # Export the chromosome variable for Nextflow
+        export CHROM_VAR="\$chrom"
+
+        stdbuf -e0 -o0 Rscript ${params.step2_script} \
+        --sparseGRMFile=${sparse_grm} \
+        --sparseGRMSampleIDFile=${sparse_grm_samples} \
+        --bedFile=${plink_bed} \
+        --bimFile=${plink_bim} \
+        --famFile=${plink_fam} \
+        --chrom=\$CHROM_VAR \
+        --minMAF=${params.min_maf} \
+        --minMAC=${params.min_mac} \
+        --GMMATmodelFile=${step1_rda} \
+        --varianceRatioFile=${step1_var} \
+        --is_Firth_beta=TRUE \
+        --pCutoffforFirth=0.05 \
+        --LOCO=${params.LOCO} \
+        --is_output_moreDetails=TRUE \
+        --SAIGEOutputFile=${cohort_dir}.${pheno}.${chr}.txt \
+        > ${cohort_dir}.${pheno}.${chr}.log
+
+        gzip -9 ${cohort_dir}.${pheno}.${chr}.txt
         """
     stub:
         """
@@ -512,6 +1006,10 @@ process call_saige_step2_PLINK_binary_with_sparse_GRM {
 process call_saige_step2_PLINK_quant_with_sparse_GRM {
     publishDir "${launchDir}/${cohort_dir}/Saige_Step2_Results/"
     machineType 'n2-standard-4'
+    disk {
+        def fileSizeGb = plink_bed.size() / (1024 ** 3)
+        return "${50 + fileSizeGb} GB"
+    }
     input:
         // variables
         tuple val(cohort_dir), val(pheno), path(step1_rda), path(step1_var), val(chr)
@@ -520,23 +1018,79 @@ process call_saige_step2_PLINK_quant_with_sparse_GRM {
     output:
         tuple val(cohort_dir), val(pheno), val(chr), path("${cohort_dir}.${pheno}.${chr}.txt.gz")
         tuple val(cohort_dir), val(pheno), val(chr), path("${cohort_dir}.${pheno}.${chr}.log")
-    shell:
+    script:
+        def stripped_chr = chr.contains('_') ? chr.toString().split('_')[0] : chr
+
         """
+        #!/bin/bash
+
+        # Input file passed as an argument
+        
+        # Read the first line and extract the first column
+        first_column=\$(head -n1 ${plink_bim} | cut -f1)
+
+        # Initialize variables
+        contains_chr=false
+        contains_leading_zeros=false
+        chrprefix=""
+        iszero=""
+        
+
+        # Check for "chr"
+        if [[ "\$first_column" == *"chr"* ]]; then
+            contains_chr=true
+        fi
+
+        # Check for leading zeros and numeric values
+        if [[ "\$first_column" =~ ^0[0-9]+ ]]; then
+            contains_leading_zeros=true
+        fi
+
+        # Determine the chromosome prefix and leading zero
+        if [[ "\$contains_chr" == true ]]; then
+            chrprefix="chr"
+        else
+            chrprefix=""
+        fi
+
+        # Extract the numeric part of the chromosome, assuming it follows "chr" (if applicable)
+        if [[ "\$first_column" =~ [0-9]+ ]]; then
+            chr="\${first_column//[^0-9]/}"  # Extract only the digits
+        else
+            chr="0"  # Default value if no valid chromosome number is found
+        fi
+
+        # Check if the chromosome is less than 10 and leading zeros are present
+        if [[ "\$contains_leading_zeros" == true && ${stripped_chr} -lt 10 ]]; then
+            iszero="0"
+        else
+            iszero=""
+        fi
+
+        # Construct the final chromosome string
+        chrom="\${chrprefix}\${iszero}${stripped_chr}"
+
+        # Output the chromosome string to a file
+        echo "\$chrom" > chrom.txt
+
+        # Export the chromosome variable for Nextflow
+        export CHROM_VAR="\$chrom"
+
         stdbuf -e0 -o0 Rscript ${params.step2_script} \
-         --sparseGRMFile=${sparse_grm} \
-         --sparseGRMSampleIDFile=${sparse_grm_samples} \
-         --bedFile=${plink_bed} \
-         --bimFile=${plink_bim} \
-         --famFile=${plink_fam} \
-         --chrom=${chr} \
-         --minMAF=${params.min_maf} \
-         --minMAC=${params.min_mac} \
-         --GMMATmodelFile=${step1_rda} \
-         --varianceRatioFile=${step1_var} \
-         --SAIGEOutputFile=${cohort_dir}.${pheno}.${chr}.txt \
-         --LOCO=${params.LOCO} \
-         --is_output_moreDetails=TRUE \
-          > ${cohort_dir}.${pheno}.${chr}.log
+        --sparseGRMFile=${sparse_grm} \
+        --sparseGRMSampleIDFile=${sparse_grm_samples} \
+        --bedFile=${plink_bed} \
+        --bimFile=${plink_bim} \
+        --famFile=${plink_fam} \
+        --chrom=\$CHROM_VAR \
+        --minMAF=${params.min_maf} \
+        --minMAC=${params.min_mac} \
+        --GMMATmodelFile=${step1_rda} \
+        --varianceRatioFile=${step1_var} \
+        --SAIGEOutputFile=${cohort_dir}.${pheno}.${chr}.txt \
+        --LOCO=${params.LOCO} \
+        --is_output_moreDetails=TRUE \
+        > ${cohort_dir}.${pheno}.${chr}.log
 
         gzip -9 ${cohort_dir}.${pheno}.${chr}.txt
         """
@@ -547,14 +1101,111 @@ process call_saige_step2_PLINK_quant_with_sparse_GRM {
         """
 }
 
-include {
-    paramToList
-} from '../processes/saige_helpers.nf'
+process call_saige_step2_PLINK_survival_with_sparse_GRM {
+    publishDir "${launchDir}/${cohort_dir}/Saige_Step2_Results/"
+    machineType 'n2-standard-4'
+    disk {
+        def fileSizeGb = plink_bed.size() / (1024 ** 3)
+        return "${50 + fileSizeGb} GB"
+    }
+    input:
+        // variables
+        tuple val(cohort_dir), val(pheno), path(step1_rda), path(step1_var), val(chr)
+        tuple path(plink_bed), path(plink_bim), path(plink_fam)
+        tuple path(sparse_grm), path(sparse_grm_samples)
+    output:
+        tuple val(cohort_dir), val(pheno), val(chr), path("${cohort_dir}.${pheno}.${chr}.txt.gz")
+        tuple val(cohort_dir), val(pheno), val(chr), path("${cohort_dir}.${pheno}.${chr}.log")
+    script:
+        def stripped_chr = chr.contains('_') ? chr.toString().split('_')[0] : chr
+        """
+        #!/bin/bash
+
+        # Input file passed as an argument
+        
+        # Read the first line and extract the first column
+        first_column=\$(head -n1 ${plink_bim} | cut -f1)
+
+        # Initialize variables
+        contains_chr=false
+        contains_leading_zeros=false
+        chrprefix=""
+        iszero=""
+        
+
+        # Check for "chr"
+        if [[ "\$first_column" == *"chr"* ]]; then
+            contains_chr=true
+        fi
+
+        # Check for leading zeros and numeric values
+        if [[ "\$first_column" =~ ^0[0-9]+ ]]; then
+            contains_leading_zeros=true
+        fi
+
+        # Determine the chromosome prefix and leading zero
+        if [[ "\$contains_chr" == true ]]; then
+            chrprefix="chr"
+        else
+            chrprefix=""
+        fi
+
+        # Extract the numeric part of the chromosome, assuming it follows "chr" (if applicable)
+        if [[ "\$first_column" =~ [0-9]+ ]]; then
+            chr="\${first_column//[^0-9]/}"  # Extract only the digits
+        else
+            chr="0"  # Default value if no valid chromosome number is found
+        fi
+
+        # Check if the chromosome is less than 10 and leading zeros are present
+        if [[ "\$contains_leading_zeros" == true && ${stripped_chr} -lt 10 ]]; then
+            iszero="0"
+        else
+            iszero=""
+        fi
+
+        # Construct the final chromosome string
+        chrom="\${chrprefix}\${iszero}${stripped_chr}"
+
+        # Output the chromosome string to a file
+        echo "\$chrom" > chrom.txt
+
+        # Export the chromosome variable for Nextflow
+        export CHROM_VAR="\$chrom"
+
+        stdbuf -e0 -o0 Rscript ${params.step2_script} \
+        --sparseGRMFile=${sparse_grm} \
+        --sparseGRMSampleIDFile=${sparse_grm_samples} \
+        --bedFile=${plink_bed} \
+        --bimFile=${plink_bim} \
+        --famFile=${plink_fam} \
+        --chrom=\$CHROM_VAR \
+        --minMAF=${params.min_maf} \
+        --minMAC=${params.min_mac} \
+        --GMMATmodelFile=${step1_rda} \
+        --varianceRatioFile=${step1_var} \
+        --is_Firth_beta=TRUE \
+        --pCutoffforFirth=0.05 \
+        --LOCO=${params.LOCO} \
+        --is_output_moreDetails=TRUE \
+        --SAIGEOutputFile=${cohort_dir}.${pheno}.${chr}.txt \
+        > ${cohort_dir}.${pheno}.${chr}.log
+
+        gzip -9 ${cohort_dir}.${pheno}.${chr}.txt
+        """
+    stub:
+        """
+        touch ${cohort_dir}.${pheno}.${chr}.txt.gz
+        touch ${cohort_dir}.${pheno}.${chr}.log
+        """
+}
+
 
 workflow SAIGE_VAR_STEP2 {
     take:
         step1_bin_output
         step1_quant_output
+        step1_survival_output
         use_step2_prefix
         bgen_sample_file
         IS_PHEWAS
@@ -562,8 +1213,12 @@ workflow SAIGE_VAR_STEP2 {
         cohort = Channel.fromList(params.cohort_list)
         bin_pheno = Channel.fromList(paramToList(params.bin_pheno_list))
         quant_pheno = Channel.fromList(paramToList(params.quant_pheno_list))
-        chromosome = Channel.fromList(params.chromosome_list)
-
+        survival_pheno = Channel.fromList(paramToList(params.survival_pheno_list))
+        if (params.enable_chunking) {
+            chromosome = Channel.fromList(paramToList(params.chunks_list))
+        } else {
+            chromosome = Channel.fromList(params.chromosome_list)
+        }
         ftype = params.ftype
 
         // Build the chromosome-separated input file paths
@@ -572,6 +1227,8 @@ workflow SAIGE_VAR_STEP2 {
         } else if (ftype == 'BGEN') {
             suffixes_list = ['.bgen', '.bgen.bgi']
         }
+        
+        println("Step 2 has been triggered.Input channels being created")
 
         // File pattern = prefix + chr + ext
         step2_chr_sep_input = chromosome.map { chr -> \
@@ -597,11 +1254,18 @@ workflow SAIGE_VAR_STEP2 {
         geno_data_parallel_quant = step2_chr_sep_input.combine(cohort).combine(quant_pheno).map {
             chr, geno_fileset, cohort, pheno -> new Tuple(cohort, pheno, chr, geno_fileset)
         }
+        geno_data_parallel_survival = step2_chr_sep_input.combine(cohort).combine(survival_pheno).map {
+            chr, geno_fileset, cohort, pheno -> new Tuple(cohort, pheno, chr, geno_fileset)
+        }
 
         // These have KEPT (phenos, cohorts) x chromosomes
         step2_bin_input = step1_bin_output.combine(chromosome)
+        step2_bin_input.view{"s2 bin: ${it}"}
         step2_quant_input = step1_quant_output.combine(chromosome)
+        step2_survival_input = step1_survival_output.combine(chromosome)
 
+        println("Input channels created")
+        
         // These sections synchronizes our genetic data input files to our step2 input by joining on (cohort, pheno, chr)
         // We're using the join as a filter essentially
         chr_geno_files_bin = step2_bin_input.map {
@@ -610,12 +1274,22 @@ workflow SAIGE_VAR_STEP2 {
             cohort, pheno, chr, geno_fileset -> geno_fileset
         }
 
+        chr_geno_files_bin.view{"chrgeno bin: ${it}"}
+
         // Same for quantitative phenotypes
         chr_geno_files_quant = step2_quant_input.map {
             cohort, pheno, rda, var, chr -> new Tuple(cohort, pheno, chr)
         }.join(geno_data_parallel_quant, by: [0, 1, 2]).map {
             cohort, pheno, chr, geno_fileset -> geno_fileset
         }
+
+        chr_geno_files_survival = step2_survival_input.map {
+            cohort, pheno, rda, var, chr -> new Tuple(cohort, pheno, chr)
+        }.join(geno_data_parallel_survival, by: [0, 1, 2]).map {
+            cohort, pheno, chr, geno_fileset -> geno_fileset
+        }
+
+        println("Step 2 Process being called.")
 
         if (params.use_sparse_GRM) {
             // Define sparse GRM input
@@ -628,6 +1302,10 @@ workflow SAIGE_VAR_STEP2 {
                 // Quantitative phenotypes + PLINK input
                 (step2_quant_output, step2_bin_logs) = call_saige_step2_PLINK_quant_with_sparse_GRM(
                     step2_quant_input, chr_geno_files_quant, sparse_grm_input)
+                // Survival phenotypes + PLINK input
+                (step2_survival_output, step2_survival_logs) = call_saige_step2_PLINK_survival_with_sparse_GRM(
+                    step2_survival_input, chr_geno_files_survival, sparse_grm_input)
+                
             } else if (ftype == 'BGEN') {
                 // Call bgen sparse GRM processes
                 // Binary phenotypes + BGEN input
@@ -636,6 +1314,11 @@ workflow SAIGE_VAR_STEP2 {
                 // Quantitative phenotypes + BGEN input
                 (step2_quant_output, step2_bin_logs) = call_saige_step2_BGEN_quant_with_sparse_GRM(
                     step2_quant_input, chr_geno_files_quant, bgen_sample_file, sparse_grm_input)
+                // Survival phenotypes + BGEN input
+                (step2_survival_output, step2_survival_logs) = call_saige_step2_BGEN_survival_with_sparse_GRM(
+                    step2_survival_input, chr_geno_files_survival, bgen_sample_file, sparse_grm_input)
+                
+                
             }
         } else {
             // Don't use GRM input
@@ -647,6 +1330,9 @@ workflow SAIGE_VAR_STEP2 {
                 // Quantitative phenotypes + PLINK input
                 (step2_quant_output, step2_bin_logs) = call_saige_step2_PLINK_quant(
                     step2_quant_input, chr_geno_files_quant)
+                // Survival phenotypes + PLINK input
+                (step2_survival_output, step2_survival_logs) = call_saige_step2_PLINK_survival(
+                    step2_survival_input, chr_geno_files_bin)
             } else if (ftype == 'BGEN') {
                 // Call bgen regular processes
                 // Binary phenotypes + BGEN input
@@ -655,9 +1341,13 @@ workflow SAIGE_VAR_STEP2 {
                 // Quantitative phenotypes + BGEN input
                 (step2_quant_output, step2_bin_logs) = call_saige_step2_BGEN_quant(
                     step2_quant_input, chr_geno_files_quant, bgen_sample_file)
+                // Survival phenotypes + BGEN input
+                (step2_survival_output, step2_survival_logs) = call_saige_step2_BGEN_survival(
+                    step2_survival_input, chr_geno_files_survival, bgen_sample_file)
             }
         }
     emit:
         step2_bin_output
         step2_quant_output
+        step2_survival_output
         }

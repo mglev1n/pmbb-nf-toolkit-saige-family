@@ -1,6 +1,15 @@
 nextflow.enable.dsl = 2
 
 params.ftype = null // This is a GWAS param
+params.host = ""
+params.max_vars_for_GRM = null
+params.min_rare_vars_for_GRM = '300'
+params.pruning_r2_for_GRM = null
+params.LOCO = (params.exome_plink_prefix == null) ? "TRUE" : "FALSE"
+params.step1_plink_prefix = null
+params.step2_plink_prefix = null
+params.min_survival_cases = 50
+params.survival_pheno_list = null
 
 log.info """\
     NEXTFLOW - DSL2 - SAIGE ExWAS - P I P E L I N E
@@ -85,49 +94,61 @@ include {
 include {
     paramToList
     get_script_file_names
+    check_input_genetic_data_parameters
+    dump_params_to_json
 } from '../processes/saige_helpers.nf'
 
 workflow {
     // Get the script name manifest from the helper functions
     script_name_dict = get_script_file_names()
 
-    // For ExWAS, we use the same merged exome files for step 1 and step 2
-    params.step1_plink_prefix = params.exome_plink_prefix
+    // Genetic data input file requirements are checked using this helper function:
+    cleaned_genetic_data_params = check_input_genetic_data_parameters(params, 'ExWAS')
+    use_step1_prefix = cleaned_genetic_data_params['use_step1_prefix']
+    use_step2_prefix = cleaned_genetic_data_params['use_step2_prefix']
+    step2_is_chr_separated = cleaned_genetic_data_params['is_chr_separated']
 
     // Define input file paths
     pheno_covar_table = params.data_csv
     cohort_table = params.cohort_sets
-    step1_fam = "${params.step1_plink_prefix}.fam"
-    exome_fam = "${params.exome_plink_prefix}.fam"
+
+    step1_fam = "${use_step1_prefix}.fam"
+
+    if (cleaned_genetic_data_params.is_chr_separated) {
+        step2_fam = "${use_step2_prefix}${params.chromosome_list[0]}.fam"
+    } else {
+        step2_fam = "${use_step2_prefix}.fam"
+    }
 
     // Call Preprocessing sub-workflow (SAIGE_PREPROCESSING)
     workflow_is_phewas = false
-    preprocessing_output = SAIGE_PREPROCESSING(pheno_covar_table, cohort_table, step1_fam, exome_fam, workflow_is_phewas)
+    preprocessing_output = SAIGE_PREPROCESSING(pheno_covar_table, cohort_table, step1_fam, step2_fam, workflow_is_phewas)
     keep_cohort_bin_pheno_combos = preprocessing_output[0]
     keep_cohort_quant_pheno_combos = preprocessing_output[1]
-    pheno_table = preprocessing_output[2]
-    cohort_sample_lists = preprocessing_output[3]
-    cohort_pheno_tables = preprocessing_output[4]
+    keep_cohort_survival_pheno_combos = preprocessing_output[2]
+    pheno_table = preprocessing_output[3]
+    cohort_sample_lists = preprocessing_output[4]
+    cohort_pheno_tables = preprocessing_output[5]
 
     // Call Step 1 sub-workflow (SAIGE_STEP1)
     step1_is_gene = true
-    use_plink_prefix = params.use_sparse_GRM ? params.step1_plink_prefix : params.exome_plink_prefix
-    (step1_bin_output, step1_quant_output) = SAIGE_STEP1(cohort_sample_lists,
+    (step1_bin_output, step1_quant_output,step1_surival_output) = SAIGE_STEP1(cohort_sample_lists,
         cohort_pheno_tables,
         keep_cohort_bin_pheno_combos,
         keep_cohort_quant_pheno_combos,
-        use_plink_prefix,
+        keep_cohort_survival_pheno_combos,
+        use_step1_prefix,
         step1_is_gene)
 
     // Call Step 2 sub-workflow (SAIGE_GENE_STEP2)
-    use_plink_prefix = params.exome_plink_prefix // Use exome prefix for step 2
     (step2_bin_output, step2_quant_output) = SAIGE_GENE_STEP2(
         step1_bin_output,
         step1_quant_output,
-        use_plink_prefix,
+        use_step2_prefix,
+        step2_is_chr_separated,
         workflow_is_phewas)
 
-    /*
+    /* 
     Step 2 -> Merged Sumstats Channel Emission Tuples
     Step 2 Out:  cohort, phenotype, chromosome, regions, singles
     Group By:    cohort, phenotype
@@ -190,5 +211,8 @@ workflow {
 
     // methods info
     methods_script = script_name_dict['exwas_methods']
-    methods_blurb = make_exwas_report_methods_blurb(methods_script, params)
+
+    json_params = dump_params_to_json(params, 'saige_exwas')
+
+    // methods_blurb = make_exwas_report_methods_blurb(methods_script, params)
 }

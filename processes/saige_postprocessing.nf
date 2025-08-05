@@ -1,4 +1,3 @@
-
 process merge_and_filter_saige_gene_regions_output {
     publishDir "${launchDir}/${cohort_dir}/Sumstats/"
     machineType 'n2-standard-4'
@@ -17,13 +16,13 @@ process merge_and_filter_saige_gene_regions_output {
         echo "${params.regions_col_names.collect().join('\n')}" > colnames.txt
         cat colnames.txt
         ${params.my_python} ${merge_regions_script} \
-          -p ${pheno} \
-          -c colnames.txt \
-          --cohort ${cohort_dir} \
-          --pvalue ${params.p_cutoff_summarize} \
-          -s ${chr_inputs.join(' ')} \
-          --counts ${pheno_summary_table} \
-          --regions
+            -p ${pheno} \
+            -c colnames.txt \
+            --cohort ${cohort_dir} \
+            --pvalue ${params.p_cutoff_summarize} \
+            -s ${chr_inputs.join(' ')} \
+            --counts ${pheno_summary_table} \
+            --regions
         """
     stub:
         """
@@ -81,7 +80,6 @@ process merge_and_filter_saige_gene_regions_phewas_output {
         tuple val(cohort_dir), val(chr), path("${cohort_dir}.chr${chr}.gene_phewas_regions.filtered.saige.csv")
         tuple val(cohort_dir), val(chr), path("${cohort_dir}.chr${chr}.gene_phewas_cauchy_tests.saige.gz")
         tuple val(cohort_dir), val(chr), path("${cohort_dir}.chr${chr}.gene_phewas_cauchy_tests.filtered.saige.csv")
-    shell:
     shell:
         """
         echo "${params.regions_col_names.collect().join('\n')}" > colnames.txt
@@ -141,7 +139,7 @@ process merge_and_filter_saige_gene_singles_output {
 process merge_and_filter_saige_gwas_output {
     publishDir "${launchDir}/${cohort_dir}/Sumstats/"
     machineType 'n2-standard-16'
-    memory '35GB'
+    memory '200GB'
     input:
         // variables
         tuple val(cohort_dir), val(pheno), val(chr_list), path(chr_inputs)
@@ -192,12 +190,12 @@ process gzipFiles {
     """
 
     stub:
-    """
-    touch ${file_path}.gz
-    """
+        """
+        touch ${file_path}.gz
+        å"""
 }
 
-process merge_and_filter_saige_variantphewas_output {
+process merge_and_filter_saige_variant_phewas_output {
     publishDir "${launchDir}/${cohort_dir}/Sumstats/"
     machineType 'n2-standard-4'
     input:
@@ -230,6 +228,7 @@ process merge_and_filter_saige_variantphewas_output {
 process make_summary_regions_output {
     publishDir "${launchDir}/Summary/"
     machineType 'n2-standard-4'
+    label 'safe_to_skip'
     input:
         path(filtered_regions)
     output:
@@ -258,6 +257,7 @@ process make_summary_regions_output {
 process make_summary_singles_output {
     publishDir "${launchDir}/Summary/"
     machineType 'n2-standard-4'
+    label 'safe_to_skip'
     input:
         //stageAs: '?/*'
         path(filtered_singles)
@@ -288,6 +288,7 @@ process make_summary_singles_output {
 process make_summary_suggestive_gwas {
     publishDir "${launchDir}/Summary/"
     machineType 'n2-standard-4'
+    label 'safe_to_skip'
     input:
         path(filtered_singles)
     output:
@@ -314,10 +315,10 @@ process make_summary_suggestive_gwas {
         '''
 }
 
-//, arity: '1..*'
 process gwas_make_biofilter_positions_input {
     publishDir "${launchDir}/Annotations/"
     machineType 'n2-standard-4'
+    label 'safe_to_skip'
     input:
         //, stageAs: "?/*"
         path(filtered_sumstats)
@@ -350,6 +351,7 @@ process gwas_make_biofilter_positions_input {
 process make_summary_table_with_annot {
     publishDir "${launchDir}/Summary/"
     machineType 'n2-standard-4'
+    label 'safe_to_skip'
     input:
         path(all_filtered_sumstats)
         tuple val(data_nickname), path(biofilter_annots)
@@ -378,4 +380,59 @@ process make_summary_table_with_annot {
         '''
         touch saige_gwas_suggestive.csv
         '''
+}
+
+/*
+process MERGE_CHUNKS {
+    publishDir "${launchDir}/merged_chunk_files/"
+
+    input:
+        tuple val(cohort_dir), val(pheno), val(full_chromosome), path(file_paths)
+
+    output:
+        tuple val(cohort_dir), val(pheno), val(full_chromosome), path("${cohort_dir}.${pheno}.${full_chromosome}.txt.gz")
+
+    script:
+    """
+    zcat ${file_paths[0]} > ${cohort_dir}.${pheno}.${full_chromosome}.txt
+    for f in ${file_paths}; do
+        if [ "\$f" != "${file_paths[0]}" ]; then
+            zcat \$f | tail -n +2  >> ${cohort_dir}.${pheno}.${full_chromosome}.txt
+        fi
+    done
+    gzip -9 ${cohort_dir}.${pheno}.${full_chromosome}.txt
+    """
+}
+*/
+
+process MERGE_CHUNKS {
+    publishDir "${launchDir}/merged_chunk_files/"
+    
+    input:
+    tuple val(cohort_dir), val(pheno), val(full_chromosome), path(file_paths)
+    
+    output:
+    tuple val(cohort_dir), val(pheno), val(full_chromosome), path("${cohort_dir}.${pheno}.${full_chromosome}.txt.gz")
+    
+    script:
+    // Convert file_paths to a string list for the shell script
+    def file_list = file_paths.join(' ')
+    
+    """
+    # Get the first file from the list
+    FIRST_FILE=\$(ls ${file_paths[0]} 2>/dev/null || echo ${file_paths})
+    
+    # Extract header from first file
+    zcat \$FIRST_FILE > ${cohort_dir}.${pheno}.${full_chromosome}.txt
+    
+    # Process each file, skipping header lines for all but the first file
+    for f in ${file_list}; do
+        if [ "\$f" != "\$FIRST_FILE" ]; then
+            zcat \$f | tail -n +2 >> ${cohort_dir}.${pheno}.${full_chromosome}.txt
+        fi
+    done
+    
+    # Compress the final file
+    gzip -9 ${cohort_dir}.${pheno}.${full_chromosome}.txt
+    """
 }

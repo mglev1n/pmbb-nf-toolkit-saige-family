@@ -16,7 +16,7 @@ process filter_chr_group_file {
 
         with open('${chr_group_file}') as f:
             for line in f:
-                if line.split('\\t', 2)[0] in keep_genes:
+                if line.split(maxsplit=2)[0] in keep_genes:
                     keep_lines.append(line.strip('\\n'))
 
         open('filtered_group_file.${chr}.txt', 'w+').write('\\n'.join(keep_lines) + '\\n')
@@ -28,7 +28,7 @@ process filter_chr_group_file {
 }
 
 process call_saige_gene_step2_bin {
-    publishDir "${launchDir}/${cohort_dir}/Saige_Gene_Results/"
+    // publishDir "${launchDir}/${cohort_dir}/Saige_Gene_Results/"
     machineType 'n2-standard-4'
     input:
         // variables
@@ -78,7 +78,7 @@ process call_saige_gene_step2_bin {
 }
 
 process call_saige_gene_step2_quant {
-    publishDir "${launchDir}/${cohort_dir}/Saige_Gene_Results/"
+    // publishDir "${launchDir}/${cohort_dir}/Saige_Gene_Results/"
     machineType 'n2-standard-4'
     input:
         // variables
@@ -125,7 +125,7 @@ process call_saige_gene_step2_quant {
 }
 
 process call_saige_gene_step2_bin_with_sparse_GRM {
-    publishDir "${launchDir}/${cohort_dir}/Saige_Gene_Results/"
+    // publishDir "${launchDir}/${cohort_dir}/Saige_Gene_Results/"
     machineType 'n2-standard-4'
     input:
         // variables, step 1 outputs
@@ -193,25 +193,25 @@ process call_saige_gene_step2_quant_with_sparse_GRM {
     shell:
         """
         stdbuf -e0 -o0 Rscript ${params.step2_script} \
-         --sparseGRMFile=${sparse_grm} \
-         --sparseGRMSampleIDFile=${sparse_grm_samples} \
-         --bedFile=${plink_bed} \
-         --bimFile=${plink_bim} \
-         --famFile=${plink_fam} \
-         --chrom=${chr} \
-         --minMAF=${params.min_maf} \
-         --minMAC=${params.min_mac} \
-         --GMMATmodelFile=${step1_rda} \
-         --varianceRatioFile=${step1_var} \
-         --maxMAF_in_groupTest="${params.grouptest_maf}" \
-         --annotation_in_groupTest="${params.grouptest_annotation}" \
-         --groupFile=${chr_group_file} \
-         --SAIGEOutputFile=${cohort_dir}.${pheno}.${chr} \
-         --LOCO=${params.LOCO} \
-         --is_output_moreDetails=TRUE \
-         --is_output_markerList_in_groupTest=TRUE \
-         --is_single_in_groupTest=TRUE \
-           > ${cohort_dir}.${pheno}.${chr}.log
+        --sparseGRMFile=${sparse_grm} \
+        --sparseGRMSampleIDFile=${sparse_grm_samples} \
+        --bedFile=${plink_bed} \
+        --bimFile=${plink_bim} \
+        --famFile=${plink_fam} \
+        --chrom=${chr} \
+        --minMAF=${params.min_maf} \
+        --minMAC=${params.min_mac} \
+        --GMMATmodelFile=${step1_rda} \
+        --varianceRatioFile=${step1_var} \
+        --maxMAF_in_groupTest="${params.grouptest_maf}" \
+        --annotation_in_groupTest="${params.grouptest_annotation}" \
+        --groupFile=${chr_group_file} \
+        --SAIGEOutputFile=${cohort_dir}.${pheno}.${chr} \
+        --LOCO=${params.LOCO} \
+        --is_output_moreDetails=TRUE \
+        --is_output_markerList_in_groupTest=TRUE \
+        --is_single_in_groupTest=TRUE \
+            > ${cohort_dir}.${pheno}.${chr}.log
 
         gzip -9 ${cohort_dir}.${pheno}.${chr}
         gzip -9 ${cohort_dir}.${pheno}.${chr}.singleAssoc.txt
@@ -235,6 +235,7 @@ workflow SAIGE_GENE_STEP2 {
         step1_bin_output
         step1_quant_output
         use_step2_prefix
+        step2_is_chr_separated
         IS_PHEWAS
     main:
         cohort = Channel.fromList(params.cohort_list)
@@ -287,13 +288,25 @@ workflow SAIGE_GENE_STEP2 {
         }
 
         // Now, we make sure the plink files are staged for each job
-        exome_plink_file_bin = step2_bin_input.map {
+        // Now, we make sure the plink files are staged for each job
+        if (!step2_is_chr_separated) {
+            exome_plink_file_bin = step2_bin_input.map {
             cohort, pheno, rda, var, chr -> \
             new Tuple(*plink_suffixes_list.collect { ext -> use_step2_prefix + ext })
-        }
-        exome_plink_file_quant = step2_quant_input.map {
+            }
+            exome_plink_file_quant = step2_quant_input.map {
+                cohort, pheno, rda, var, chr -> \
+                new Tuple(*plink_suffixes_list.collect { ext -> use_step2_prefix + ext })
+            }
+        } else {
+            exome_plink_file_bin = step2_bin_input.map {
             cohort, pheno, rda, var, chr -> \
-            new Tuple(*plink_suffixes_list.collect { ext -> use_step2_prefix + ext })
+            new Tuple(*plink_suffixes_list.collect { ext -> use_step2_prefix + chr + ext })
+            }
+            exome_plink_file_quant = step2_quant_input.map {
+                cohort, pheno, rda, var, chr -> \
+                new Tuple(*plink_suffixes_list.collect { ext -> use_step2_prefix + chr + ext })
+            }
         }
 
         // Finally, we can call SAIGE Step 2!

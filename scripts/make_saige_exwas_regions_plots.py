@@ -16,16 +16,13 @@ def make_arg_parser():
     # Add a non-optional list argument for cohort
     parser.add_argument('-c', '--cohort', required=True, help='cohort')
     # Add an argument for output_directory
-    parser.add_argument('-o', '--outDir', default=None,
-                        help='Path to output directory. Default: current working directory')
+    parser.add_argument('-o', '--outDir', default=None, help='Path to output directory. Default: current working directory')
 
     parser.add_argument('-g', '--geneFile')
     parser.add_argument('-s', '--sumstats')
     parser.add_argument('-t', '--phenoTable')
-    parser.add_argument(
-        '-m', '--mafList', help="comma-separated list of grouptest MAF values given to SAIGE")
-    parser.add_argument('-a', '--annotationList',
-                        help="comma-separated list of grouptest annotation values given to SAIGE")
+    parser.add_argument('-m', '--mafList', help="comma-separated list of grouptest MAF values given to SAIGE")
+    parser.add_argument('-a', '--annotationList', help="comma-separated list of grouptest annotation values given to SAIGE")
 
     return parser
 
@@ -92,18 +89,20 @@ for ann in grouptest_annotation.split(','):
         mp = ManhattanPlot(regions_sumstats, test_rows=None, title=plot_title)
         mp.load_data()
         mp.df.rename(columns=columns_map_inv,inplace=True)
+
         # Replace values less than min float precision with min value
         mp.df['Pvalue_Burden'] = np.where(mp.df['Pvalue_Burden'].astype(float) < sys.float_info.min, sys.float_info.min, mp.df['Pvalue_Burden'].astype(float))
         mp.df = mp.df[(mp.df['Group'] == ann) & (mp.df['max_MAF'] == maf)]
+        print(mp.df)
         # not every combination exists. Pass over iteration if DataFrame is empty
         if mp.df.empty:
             print(
                 f"The combination of Group = {ann}, MAF = {maf} does not exist")
             continue
         # Add POS And CHR values from gene_file
-        mp.df['POS'] = gene_file.loc[mp.df['Region'], 'seq_region_start'].values
-        mp.df['CHR'] = gene_file.loc[mp.df['Region'], 'chromosome'].values
-        mp.df['SYMBOL'] = gene_file.loc[mp.df['Region'], 'gene_symbol'].values
+        mp.df['POS'] = gene_file.reindex(mp.df['Region'])['seq_region_start'].values
+        mp.df['CHR'] = gene_file.reindex(mp.df['Region'])['chromosome'].values
+        mp.df['SYMBOL'] = gene_file.reindex(mp.df['Region'])['gene_symbol'].values
         # mp.clean_data(col_map={'CHR': '#CHROM', 'BP': 'POS', columns_map['Region']: 'ID', columns_map['Pvalue_Burden']: 'P'})
         mp.clean_data(col_map={'CHR': '#CHROM', 'BP': 'POS', 'SYMBOL': 'ID', 'Pvalue_Burden': 'P'})
         mp.get_thinned_data()

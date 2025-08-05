@@ -130,8 +130,9 @@ if not pheno_col_descriptions:
     pheno_col_descriptions = pheno_descriptions.columns[pheno_descriptions.columns.str.match(phecode_pattern, case=False)].tolist()[0]
 
 # Apply the function to the phecode column to prepend Phe if needed
-sumstats[pheno_col_sumstats] = sumstats[pheno_col_sumstats].astype(str).apply(check_and_prepend)
-pheno_descriptions[pheno_col_descriptions] = pheno_descriptions[pheno_col_descriptions].astype(str).apply(check_and_prepend)
+# sumstats[pheno_col_sumstats] = sumstats[pheno_col_sumstats].astype(str).apply(check_and_prepend)
+# pheno_descriptions[pheno_col_descriptions] = pheno_descriptions[pheno_col_descriptions].astype(str).apply(check_and_prepend)
+
 # get descriptions and category columns
 descriptions_pattern = r'^(descr)'
 description_col = pheno_descriptions.columns[pheno_descriptions.columns.str.match(descriptions_pattern, case=False)].tolist()[0]
@@ -174,6 +175,10 @@ if not annotation_column:
     annotation_column = data.columns[data.columns.str.match(annotation_pattern, case=False)].tolist()[0]
 
 # print(f"Region Column: {gene_region_column}\nPVAL Column: {pvalue_column}\nMAF Column: {maf_column}\nGroup Column: {annotation_column}\n")
+
+# remove nas in case something weird happened
+check_cols = [gene_region_column,pvalue_column,maf_column, beta_column,annotation_column]
+data.dropna(subset=check_cols,inplace=True)
 
 # Log-transform the p values for plotting
 data['LOG10P'] = -np.log10(data[pvalue_column])
@@ -256,12 +261,15 @@ def plots_filename(row):
     region = row[gene_region_column]
     ann = row[annotation_column]
     maf = row[maf_column]
-    output_plot_file = f'Plots/{cohort}.{region}.{group.replace(";","-")}.maf{str(maf).replace(".","-")}.phewas.png'
+    output_plot_file = f'Plots/{cohort}.{region}.{ann.replace(";","-")}.maf{str(maf).replace(".","-")}.phewas.png'
+    # print(f"Debug output plots file: \n{output_plot_file}\n")
     return output_plot_file
 
 data.insert(0,'cohort',cohort)
 grouped_df = data.groupby(['cohort',gene_region_column, annotation_column,maf_column]).first().reset_index()
-grouped_df['results_file'] = sumstats_file
+grouped_df['results_file'] = f"{cohort}/Sumstats/{sumstats_file}"
 grouped_df['gene_phewas_plot'] = grouped_df.apply(lambda row: plots_filename(row), axis=1)
+# grouped_df['gene_phewas_plot'] = grouped_df.apply(plots_filename, axis=1)
+grouped_df['filtered_results_file'] = "Summary/saige_exwas_suggestive_regions.csv"
 output_file = f"{cohort}.{chromosome}.phewas_regions.plots_manifest.csv"
 grouped_df.to_csv(output_file,index=False)

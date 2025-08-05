@@ -114,8 +114,8 @@ mp.sig_line = p_thresh
 # Replace underscores with colons to avoide confusing the LaTeX formating
 mp.thinned['ID'] = mp.thinned['ID'].str.replace('_', ':')
 
-mp.update_plotting_parameters(vertical=True, sig=p_thresh, annot_thresh=p_thresh, merge_genes=True)
-mp.full_plot(save=output_manhattan, rep_boost=False, extra_cols={'BETA': 'BETA'}, number_cols=['BETA'], keep_chr_pos=False)
+mp.update_plotting_parameters(vertical=False, sig=p_thresh, annot_thresh=p_thresh, merge_genes=True)
+mp.full_plot(save=output_manhattan, rep_boost=False, extra_cols={'BETA': 'BETA'}, number_cols=['BETA'], keep_chr_pos=False, with_table_bg = False, with_table_grid= False)
 plt.clf()
 
 print(f"Saved Manhattan plot to: {output_manhattan}")

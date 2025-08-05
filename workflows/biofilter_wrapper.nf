@@ -9,7 +9,7 @@ workflow BIOFILTER_POSITIONS {
     take:
         data_positions // channel with tuples of (data nickname, position file)
     main:
-
+        
         bf_annot = call_biofilter_positions(
             data_positions,
             params['biofilter_script'],
@@ -25,6 +25,8 @@ ANNOTATIONS = 'position_label snp position gene upstream downstream'
 
 process call_biofilter_positions {
     publishDir "${launchDir}/Annotations/"
+    errorStrategy 'retry'
+    maxRetries 100
 
     input:
         tuple val(data_nickname), path(positions_file)
