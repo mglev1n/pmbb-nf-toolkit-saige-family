@@ -44,7 +44,7 @@ process filter_snps_bgen {
         tuple val(chr), path("phewas_input.chr${chr}.{bgen,bgen.bgi}")
     shell:
         """
-        awk '{print \$1 ":" \$2 "-" \$3}' ${snp_list_file} > bgen_formatted_snplist.txt
+        awk '{print "chr" \$1 ":" \$2 "-" \$3}' ${snp_list_file} > bgen_formatted_snplist.txt
         ${params.my_bgenix} -g ${bgen_set[0].toString()} -incl-range bgen_formatted_snplist.txt > phewas_input.chr${chr}.bgen
 
         if test -f phewas_input.chr${chr}.bgen; then

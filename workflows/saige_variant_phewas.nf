@@ -129,7 +129,11 @@ workflow {
         step1_is_gene)
 
     use_genetic_data_prefix = ftype == 'PLINK' ? params.step2_plink_prefix : params.step2_bgen_prefix
+<<<<<<< HEAD
     bgen_sample_file = ftype == 'PLINK' ? null : params.bgen_samplefile
+=======
+    bgen_sample_file = ftype == 'PLINK' ? null : params.samplefile
+>>>>>>> a3746ee2252a008421148709dfca688c3be6c69b
     (step2_bin_output, step2_quant_output) = SAIGE_VAR_STEP2(
         step1_bin_output,
         step1_quant_output,
