@@ -16,8 +16,8 @@ Here are some SAIGE-specific resources:
 
 ## Overview of Steps to get started with one of our SAIGE Pipelines:
 1. Clone the git repo and install dependencies. 
-2. Set up a `nextflow.config` file with a profile for your compute system. An example for this can be found here: [Nextflow Config](https://github.com/PMBB-Informatics-and-Genomics/pmbb-geno-pheno-toolkit/Example_Configs/nextflow.config).
-3. Create a pipeline-specific `.config` file specifying your parameters and input files. Examples can be found in our Pipeline-Specific [Example Config Files](https://github.com/PMBB-Informatics-and-Genomics/pmbb-geno-pheno-toolkit/Example_Configs/).
+2. Set up a `nextflow.config` file with a profile for your compute system. An example for this can be found here: [Nextflow Config](https://github.com/PMBB-Informatics-and-Genomics/pmbb-geno-pheno-toolkit/blob/main/Example_Configs/nextflow.config).
+3. Create a pipeline-specific `.config` file specifying your parameters and input files. Examples can be found in our Pipeline-Specific [Example Config Files](https://github.com/PMBB-Informatics-and-Genomics/pmbb-geno-pheno-toolkit/tree/main/Example_Configs).
 4. Run the workflow using a command like this: `nextflow run /path/to/pmbb-nf-toolkit-{pipeline}/{pipeline}.nf`. More details can be found in module-specific READMEs 
      - [SAIGE GWAS README](https://github.com/PMBB-Informatics-and-Genomics/pmbb-nf-toolkit-saige-family/blob/main/READMEs/SAIGE_GWAS_docs.md)
      - [SAIGE GATE README](https://github.com/PMBB-Informatics-and-Genomics/pmbb-nf-toolkit-saige-family/blob/main/READMEs/SAIGE-GATE_docs.md)

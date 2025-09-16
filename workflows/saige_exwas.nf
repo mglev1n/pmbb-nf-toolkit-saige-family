@@ -171,7 +171,8 @@ workflow {
         new Tuple(cohort, pheno, chr, region)
     }
 
-    merge_script = merge_script = script_name_dict['merge']
+    gene_file = "${params.gene_location_file}"
+    merge_script = script_name_dict['merge']
     (singles_merge_output, filtered_singles_output, ur_output, filtered_ur_output) = merge_and_filter_saige_gene_singles_output(singles_sumstats_chr_input, merge_script)
     (regions_merge_output, filtered_regions_output, cauchy_output, filtered_cauchy_output) = merge_and_filter_saige_gene_regions_output(regions_sumstats_chr_input, merge_script, pheno_table)
 
@@ -181,7 +182,7 @@ workflow {
 
     // collect a list of just the filtered output files, don't need a wildcards anymore
     summary_regions_input = filtered_regions_output.map { cohort, pheno, filtered -> filtered }.collect()
-    regions_summary = make_summary_regions_output(summary_regions_input)
+    regions_summary = make_summary_regions_output(summary_regions_input, gene_file)
 
     /*
     Post-processing:
@@ -190,8 +191,6 @@ workflow {
     Report file collection (src directory)
     HTML generation
     */
-
-    gene_file = "${params.gene_location_file}"
 
     // regions plots
     regions_plots_script = script_name_dict['exwas_regions_plots']

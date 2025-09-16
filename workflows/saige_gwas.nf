@@ -185,7 +185,7 @@ workflow SAIGE_GWAS {
         
         step2_grouped_output = MERGE_CHUNKS(step2_grouped_output)
         step2_grouped_output = step2_grouped_output.groupTuple(by: [0, 1], size: params.chromosome_list.size())
-        step2_grouped_output.view{"sgo: ${it}"}
+        // step2_grouped_output.view{"sgo: ${it}"}
 
     } else {
         println "No chunks to merge"

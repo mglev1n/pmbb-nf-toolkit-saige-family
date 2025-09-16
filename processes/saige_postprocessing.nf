@@ -192,7 +192,7 @@ process gzipFiles {
     stub:
         """
         touch ${file_path}.gz
-        å"""
+        """
 }
 
 process merge_and_filter_saige_variant_phewas_output {
@@ -231,6 +231,7 @@ process make_summary_regions_output {
     label 'safe_to_skip'
     input:
         path(filtered_regions)
+        path(gene_file)
     output:
         path('saige_exwas_suggestive_regions.csv')
     script:
@@ -246,7 +247,12 @@ process make_summary_regions_output {
             dfs.append(pd.read_csv(f))
 
         region_col = '${params.regions_col_names.keySet().toList().contains('Region') ? params.regions_col_names['Region'] : 'Region' }'
-        pd.concat(dfs).sort_values(by=[region_col]).to_csv(output, index=False)
+        combined_df = pd.concat(dfs).sort_values(by=[region_col])
+
+        # Add Gene Symbol to Output 
+        gene_file = pd.read_table("${gene_file}", index_col='gene_id', sep='\s+')
+        combined_df["Gene_Symbol"] = gene_file.reindex(combined_df[region_col])['gene_symbol'].values
+        combined_df.to_csv(output, index=False)
         """
     stub:
         '''

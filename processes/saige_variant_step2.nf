@@ -30,10 +30,6 @@ process filter_snps_plink {
 }
 
 
-
-
-
-
 process filter_snps_bgen {
     publishDir "${launchDir}/Filtered_Files/"
     machineType 'n2-standard-4'
@@ -44,7 +40,7 @@ process filter_snps_bgen {
         tuple val(chr), path("phewas_input.chr${chr}.{bgen,bgen.bgi}")
     shell:
         """
-        awk '{print "chr" \$1 ":" \$2 "-" \$3}' ${snp_list_file} > bgen_formatted_snplist.txt
+        awk '{print \$1 ":" \$2 "-" \$3}' ${snp_list_file} > bgen_formatted_snplist.txt
         ${params.my_bgenix} -g ${bgen_set[0].toString()} -incl-range bgen_formatted_snplist.txt > phewas_input.chr${chr}.bgen
 
         if test -f phewas_input.chr${chr}.bgen; then
@@ -79,7 +75,7 @@ process call_saige_step2_PLINK_binary {
         tuple path(plink_bed), path(plink_bim), path(plink_fam)
     output:
         tuple val(cohort_dir), val(pheno), val(chr), path("${cohort_dir}.${pheno}.${chr}.txt.gz")
-        tuple val(cohort_dir), val(pheno), val(chr), path("${cohort_dir}.${pheno}.${chr}.txt.gz")
+        tuple val(cohort_dir), val(pheno), val(chr), path("${cohort_dir}.${pheno}.${chr}.log")
     script:
         def stripped_chr = chr.contains('_') ? chr.toString().split('_')[0] : chr
         """
@@ -158,7 +154,8 @@ process call_saige_step2_PLINK_binary {
             """
         stub:
             """
-            touch ${cohort_dir}.${pheno}.${chr}.txt.gz
+            touch ${cohort_dir}.${pheno}.${chr}.txt
+            gzip -9 ${cohort_dir}.${pheno}.${chr}.txt
             touch ${cohort_dir}.${pheno}.${chr}.log
             """
 }
@@ -252,7 +249,8 @@ process call_saige_step2_PLINK_quant {
         """
     stub:
         """
-        touch ${cohort_dir}.${pheno}.${chr}.txt.gz
+        touch ${cohort_dir}.${pheno}.${chr}.txt
+        gzip -9 ${cohort_dir}.${pheno}.${chr}.txt
         touch ${cohort_dir}.${pheno}.${chr}.log
         """
 }
@@ -271,7 +269,7 @@ process call_saige_step2_PLINK_survival {
         tuple path(plink_bed), path(plink_bim), path(plink_fam)
     output:
         tuple val(cohort_dir), val(pheno), val(chr), path("${cohort_dir}.${pheno}.${chr}.txt.gz")
-        tuple val(cohort_dir), val(pheno), val(chr), path("${cohort_dir}.${pheno}.${chr}.txt.gz")
+        tuple val(cohort_dir), val(pheno), val(chr), path("${cohort_dir}.${pheno}.${chr}.log")
     script:
         def stripped_chr = chr.contains('_') ? chr.toString().split('_')[0] : chr
         """
@@ -350,7 +348,8 @@ process call_saige_step2_PLINK_survival {
             """
         stub:
             """
-            touch ${cohort_dir}.${pheno}.${chr}.txt.gz
+            touch ${cohort_dir}.${pheno}.${chr}.txt
+            gzip -9 ${cohort_dir}.${pheno}.${chr}.txt
             touch ${cohort_dir}.${pheno}.${chr}.log
             """
 }
@@ -440,7 +439,8 @@ process call_saige_step2_BGEN_binary {
         """
     stub:
         """
-        touch ${cohort_dir}.${pheno}.${chr}.txt.gz
+        touch ${cohort_dir}.${pheno}.${chr}.txt
+        gzip -9 ${cohort_dir}.${pheno}.${chr}.txt
         touch ${cohort_dir}.${pheno}.${chr}.log
         """
 }
@@ -531,7 +531,8 @@ process call_saige_step2_BGEN_quant {
         """
     stub:
         """
-        touch ${cohort_dir}.${pheno}.${chr}.txt.gz
+        touch ${cohort_dir}.${pheno}.${chr}.txt
+        gzip -9 ${cohort_dir}.${pheno}.${chr}.txt
         touch ${cohort_dir}.${pheno}.${chr}.log
         """
 }
@@ -620,7 +621,8 @@ process call_saige_step2_BGEN_survival {
         """
     stub:
         """
-        touch ${cohort_dir}.${pheno}.${chr}.txt.gz
+        touch ${cohort_dir}.${pheno}.${chr}.txt
+        gzip -9 ${cohort_dir}.${pheno}.${chr}.txt
         touch ${cohort_dir}.${pheno}.${chr}.log
         """
 }
@@ -713,7 +715,8 @@ process call_saige_step2_BGEN_binary_with_sparse_GRM {
 
     stub:
         """
-        touch ${cohort_dir}.${pheno}.${chr}.txt.gz
+        touch ${cohort_dir}.${pheno}.${chr}.txt
+        gzip -9 ${cohort_dir}.${pheno}.${chr}.txt
         touch ${cohort_dir}_${pheno}.${chr}.log
         """
 }
@@ -804,7 +807,8 @@ process call_saige_step2_BGEN_quant_with_sparse_GRM {
 
     stub:
         """
-        touch ${cohort_dir}.${pheno}.${chr}.txt.gz
+        touch ${cohort_dir}.${pheno}.${chr}.txt
+        gzip -9 ${cohort_dir}.${pheno}.${chr}.txt
         touch ${cohort_dir}.${pheno}.${chr}.log
         """
 }
@@ -898,7 +902,8 @@ process call_saige_step2_BGEN_survival_with_sparse_GRM {
 
     stub:
         """
-        touch ${cohort_dir}.${pheno}.${chr}.txt.gz
+        touch ${cohort_dir}.${pheno}.${chr}.txt
+        gzip -9 ${cohort_dir}.${pheno}.${chr}.txt
         touch ${cohort_dir}_${pheno}.${chr}.log
         """
 }
@@ -998,7 +1003,8 @@ process call_saige_step2_PLINK_binary_with_sparse_GRM {
         """
     stub:
         """
-        touch ${cohort_dir}.${pheno}.${chr}.txt.gz
+        touch ${cohort_dir}.${pheno}.${chr}.txt
+        gzip -9 ${cohort_dir}.${pheno}.${chr}.txt
         touch ${cohort_dir}.${pheno}.${chr}.log
         """
 }
@@ -1096,7 +1102,8 @@ process call_saige_step2_PLINK_quant_with_sparse_GRM {
         """
     stub:
         """
-        touch ${cohort_dir}.${pheno}.${chr}.txt.gz
+        touch ${cohort_dir}.${pheno}.${chr}.txt
+        gzip -9 ${cohort_dir}.${pheno}.${chr}.txt
         touch ${cohort_dir}.${pheno}.${chr}.log
         """
 }
@@ -1195,7 +1202,8 @@ process call_saige_step2_PLINK_survival_with_sparse_GRM {
         """
     stub:
         """
-        touch ${cohort_dir}.${pheno}.${chr}.txt.gz
+        touch ${cohort_dir}.${pheno}.${chr}.txt
+        gzip -9 ${cohort_dir}.${pheno}.${chr}.txt
         touch ${cohort_dir}.${pheno}.${chr}.log
         """
 }

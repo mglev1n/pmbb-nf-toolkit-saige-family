@@ -161,7 +161,7 @@ workflow {
         cohort, pheno_list, chr, region, singles, marker_list -> \
         new Tuple(cohort, chr, region)
     }
-
+    gene_file = "${params.gene_location_file}"
     merge_script = script_name_dict['merge']
     (singles_merge_output, filtered_singles_output) = merge_and_filter_saige_gene_singles_phewas_output(singles_sumstats_input, merge_script)
     (regions_merge_output, filtered_regions_output) = merge_and_filter_saige_gene_regions_phewas_output(regions_sumstats_input, merge_script, pheno_table)
@@ -170,10 +170,9 @@ workflow {
     singles_summary = make_summary_singles_output(summary_singles_input)
 
     summary_regions_input = filtered_regions_output.map { cohort, pheno, filtered -> filtered }.collect()
-    regions_summary = make_summary_regions_output(summary_regions_input)
+    regions_summary = make_summary_regions_output(summary_regions_input, gene_file)
 
     // Making Plots
-    gene_file = params.gene_location_file
     phenotype_description_file = params.pheno_descriptions_file
     regions_plot_script = script_name_dict['gb_phewas_plots']
     regions_plots = make_saige_gene_phewas_regions_plots(regions_merge_output, phenotype_description_file, regions_plot_script)
