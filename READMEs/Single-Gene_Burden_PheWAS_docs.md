@@ -16,7 +16,7 @@ Please see
 ## Software Requirements
 
 
-* [Nextflow version 23.04.1.5866](https://www.nextflow.io/docs/latest/cli.html)
+* [Nextflow version 24.04.3](https://www.nextflow.io/docs/latest/cli.html)
 
 * [Singularity 3.8.3](https://sylabs.io/docs/) OR [Docker 4.30.0](https://docs.docker.com/)
 ## Commands for Running the Workflow
@@ -552,27 +552,6 @@ nextflow run $TOOLS_DIR/pmbb-nf-toolkit-saige-family/workflows/saige_gene_phewas
 * `region_col_names` (Type: Map (Dictionary))
 
     * Default SAIGE Region column names mapped to new ones
-
-* `pheno_descriptions_file` (Type: File Path)
-
-    * file path to phenotype descriptions used for plotting and summary statistics
-
-    * Corresponding Input File: Phenotype Descriptions File
-
-        * File containing Phenotype notation,descriptions,and, categories (i.e Phe8.52,Intestinal infection due to C. difficile,Infection)
-
-        * Type: Data Table
-
-        * Format: csv
-
-        * File Header:
-
-
-        ```
-        PHENO,DESCRIPTION,CATEGORY
-        x1,description_x1,RED
-        x2,description_x2,BLUE
-        ```
 ### Pre-Processing
 
 
@@ -619,10 +598,6 @@ nextflow run $TOOLS_DIR/pmbb-nf-toolkit-saige-family/workflows/saige_gene_phewas
 * `exome_plink_prefix` (Type: Plink Fileset Prefix)
 
     * Exome plink input files 
-
-* `hwe` (Type: Float)
-
-    * Plink parameters for SAIGE Step 1 Input QC which needs a small set of high-quality variants
 ### SAIGE Step 2
 
 
@@ -673,16 +648,16 @@ params {
     my_python = "/opt/conda/bin/python"
     GPU='OFF'
 
-    data_csv = "/project/pmbb_codeworks/datasets/CodeWorks_Test_Data/cleaned_phewas_pheno_covars.csv"
-    cohort_sets = "/project/pmbb_codeworks/datasets/PMBB_Extra/Sample_Lists/Exome_sample_table.csv"
+    data_csv = "/path/to/data/cleaned_phewas_pheno_covars.csv"
+    cohort_sets = "/path/to/data/Exome_sample_table.csv"
     // Set the sex_specific pheno list file to null (lowercase) if not needed
-    sex_specific_pheno_file = "/project/pmbb_codeworks/datasets/pmbb_allwas_pheno/phecode_Sex_specific.txt"
+    sex_specific_pheno_file = "/path/to/data/phecode_Sex_specific.txt"
 
     // binary and quantitative phenotype lists
-    bin_pheno_list = "/project/pmbb_codeworks/datasets/CodeWorks_Test_Data/phecode_list_with_prefix.txt"
-    // bin_pheno_list_file = "/project/pmbb_codeworks/projects/SAIGE_FAMILY_TESTING/SAIGE_Gene_PheWAS/test_20_phecodes.txt"
-    quant_pheno_list = "/project/pmbb_codeworks/datasets/PMBB_Extra/PheCodes_2.3/lab_list.txt"
-    gene_list_file = "/project/pmbb_codeworks/projects/SAIGE_FAMILY_TESTING/SAIGE_Gene_PheWAS/test_genes.txt"
+    bin_pheno_list = "/path/to/data/phecode_list_with_prefix.txt"
+    // bin_pheno_list_file = "/path/to/data/test_20_phecodes.txt"
+    quant_pheno_list = "/path/to/data/lab_list.txt"
+    gene_list_file = "/path/to/data/test_genes.txt"
 
     // ID column label
     id_col = "PMBB_ID"
@@ -729,17 +704,17 @@ params {
 
     // step 1 path should be the small subset of markers used to fit the GRM
     use_sparse_GRM = false
-    // step1_sparse_grm = "/project/pmbb_codeworks/datasets/PMBB_Extra/SAIGE_Step0_Exome/output/PMBB_relatednessCutoff_0.125_2000_randomMarkersUsed.sparseGRM.mtx"
-    // step1_sparse_grm_samples = "/project/pmbb_codeworks/datasets/PMBB_Extra/SAIGE_Step0_Exome/output/PMBB_relatednessCutoff_0.125_2000_randomMarkersUsed.sparseGRM.mtx.sampleIDs.txt"
+    // step1_sparse_grm = "/path/to/data/PMBB_relatednessCutoff_0.125_2000_randomMarkersUsed.sparseGRM.mtx"
+    // step1_sparse_grm_samples = "/path/to/data/PMBB_relatednessCutoff_0.125_2000_randomMarkersUsed.sparseGRM.mtx.sampleIDs.txt"
 
-    exome_plink_prefix = "/project/pmbb_codeworks/datasets/PMBB-2.0_exome_GL_norm/plink/PMBB-Release-2020-2.0_genetic_exome_GL_norm"
-    group_file_prefix = "/project/pmbb_codeworks/datasets/New_VEP_Annotations_2.0/SAIGE_Sets/subset."
+    exome_plink_prefix = "/path/to/data/PMBB-Release-2020-2.0_genetic_exome_GL_norm"
+    group_file_prefix = "/path/to/data/subset."
 
     // this is for getting gene-based coordinates for plotting
     // also wrapped in the docker container
     gene_location_file = "/app/NCBI.gene.loc"
     // three-column .csv file: PHENO, DESCRIPTION, CATEGORY
-    pheno_descriptions_file = "/project/pmbb_codeworks/datasets/Ontology_Things/phecode_descriptions_categories.csv"
+    pheno_descriptions_file = "/path/to/data/phecode_descriptions_categories.csv"
 
     // P-Value Threshold for Summarizing Results at the End
     p_cutoff_summarize = 0.00001
@@ -819,19 +794,19 @@ params {
 profiles {
     non_docker_dev {
         // run locally without docker
-        process.executor = 'local'
+        process.executor = awsbatch-or-lsf-or-slurm-etc
     }
 
     standard {
         // run locally with docker
-        process.executor = 'local'
+        process.executor = awsbatch-or-lsf-or-slurm-etc
         process.container = 'pennbiobank/saige:latest'
         docker.enabled = true
     }
 
     cluster {
         // run on LSF cluster
-        process.executor = 'lsf'
+        process.executor = awsbatch-or-lsf-or-slurm-etc
         process.queue = 'epistasis_normal'
         executor {
             queueSize=500
@@ -839,21 +814,21 @@ profiles {
         process.memory = '15GB'
     	process.container = 'saige.sif'
         singularity.enabled = true
-        singularity.runOptions = '-B /project/,/static/'
+        singularity.runOptions = '-B /root/,/directory/,/names/'
     }
 
     all_of_us {
         // CHANGE EVERY TIME! These are specific for each user, see docs
-        google.lifeSciences.serviceAccountEmail = 'pet-XXX-@terra.vpc-sc-XXXXXXXX.iam.gserviceaccount.com' // change to user-specific service email
-        workDir='gs://fc-secure/path/to/workdir' // change to your user-specific working directory in your workspace bucket
-        google.project = 'terra.vpc-sc-XXXXXXXX' // change to your user-specific project ID
+        google.lifeSciences.serviceAccountEmail = service@email.gservicaaccount.com
+        workDir = /path/to/workdir/ // can be gs://
+        google.project = terra project id
 
         // These should not be changed unless you are an advanced user
         process.container = 'gcr.io/verma-pmbb-codeworks-psom-bf87/saige:latest' // GCR SAIGE docker container (static)
 
         // these are AoU, GCR parameters that should NOT be changed
         process.memory = '15GB' // minimum memory per process (static)
-        process.executor = 'google-lifesciences' // AoU uses google-lifesciences (static)
+        process.executor = awsbatch-or-lsf-or-slurm-etc
         google.zone = "us-central1-a" // AoU uses central time zone (static)
         google.location = "us-central1"
         google.lifeSciences.debug = true 

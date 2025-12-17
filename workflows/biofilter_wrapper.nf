@@ -30,7 +30,7 @@ process call_biofilter_positions {
 
     input:
         tuple val(data_nickname), path(positions_file)
-        path(biofilter_script)
+        val(biofilter_script)
         path(biofilter_loki)
     output:
         tuple val(data_nickname), path("${data_nickname}_biofilter_positions_annotations.txt")

@@ -142,6 +142,47 @@ Map check_input_genetic_data_parameters(params, pipeline) {
     return genetic_data_params_clean
 }
 
+def WriteSaigeStep2Command(ftype, file_set_prefix, bgen_sample_file, is_chr_separated, out_prefix, step2_script, step1_rda, step1_var, cohort_dir, pheno) {
+    if (!(ftype in ['PLINK','BGEN'])) {
+        throw new IllegalArgumentException("ftype must be either 'PLINK' or 'BGEN'")
+    }
+    
+    // Build file-specific args using prefixes/placeholders
+    def fileArgs = ''
+    if (ftype == 'PLINK') {
+        if (is_chr_separated) {
+            fileArgs = "--plinkFile ${file_set_prefix} --chromosomeNum \$CHROM_VAR"
+        } else {
+            fileArgs = "--plinkFile ${file_set_prefix}"
+        }
+    } else { // BGEN
+        def bgenFile = file_set_prefix
+        def bgenIndex = "${file_set_prefix}.bgi"
+        if (is_chr_separated) {
+            fileArgs = "--bgenFile=${bgenFile} --bgenFileIndex=${bgenIndex} --sampleFile=${bgen_sample_file} --chrom=\$CHROM_VAR"
+        } else {
+            fileArgs = "--bgenFile=${bgenFile} --bgenFileIndex=${bgenIndex} --sampleFile=${bgen_sample_file}"
+        }
+    }
+    
+    // Use literal $CHROM_VAR in output paths (will be evaluated by bash in process)
+    def outputFile = "${cohort_dir}.${pheno}.\$CHROM_VAR.txt"
+    def logFile = "${cohort_dir}.${pheno}.\$CHROM_VAR.log"
+    
+    def commonArgs = "--GMMATmodelFile=${step1_rda} --varianceRatioFile=${step1_var} --LOCO=\${params.LOCO} --is_output_moreDetails=TRUE ${additional_args}"
+    
+    def cmd = """\
+    stdbuf -e0 -o0 Rscript ${step2_script} \\
+        ${fileArgs} \\
+        ${commonArgs} \\
+        --SAIGEOutputFile=${outputFile} \\
+        > ${logFile}
+    gzip -9 ${outputFile}
+    """.stripIndent()
+    
+    return cmd
+}
+
 def getGpuMachineTypeChannel(numVariants, numParticipants) {
     requiredMemoryGB = (4 * numVariants * numParticipants) / 1e9
     Map gpuMemoryToMachineType = [
@@ -175,7 +216,6 @@ def getGpuMachineTypeChannel(numVariants, numParticipants) {
 import groovy.json.JsonBuilder
 process dump_params_to_json {
     publishDir "${launchDir}/Summary", mode: 'copy'
-    machineType 'n2-standard-2'
 
     input:
         val params_dict

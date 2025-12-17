@@ -16,7 +16,7 @@ Please see
 ## Software Requirements
 
 
-* [Nextflow version 23.04.1.5866](https://www.nextflow.io/docs/latest/cli.html)
+* [Nextflow version 24.04.3](https://www.nextflow.io/docs/latest/cli.html)
 
 * [Singularity 3.8.3](https://sylabs.io/docs/) OR [Docker 4.30.0](https://docs.docker.com/)
 ## Commands for Running the Workflow
@@ -295,10 +295,6 @@ _No output files defined for this module._
 * `biofilter_close_dist` (Type: Float)
 
     * The distance in bp for something to be considered “close” vs “far” with respect to nearest gene annotation. Value is often 5E4
-
-* `biofilter_script` (Type: File Path)
-
-    * The path to the biofilter script to use. If using the singularity container, should be ‘/app/biofilter.py’
 ### Pre-Processing
 
 
@@ -378,10 +374,6 @@ _No output files defined for this module._
 * `bin_pheno_list` (Type: List OR File Path)
 
     * file path to list of binary phenotypes
-
-* `quant_pheno_list` (Type: List)
-
-    * Quantitative phenotype list
 # Configuration and Advanced Workflow Files
 
 ## Example Config File Contents (From Path)
@@ -403,17 +395,17 @@ params {
     step1_script = "/usr/local/bin/step1_fitNULLGLMM.R"
     step2_script = "/usr/local/bin/step2_SPAtests.R"
 
-    data_csv = "/project/pmbb_codeworks/datasets/pmbb_allwas_pheno/common_ICD_covariate_ALL.csv"
+    data_csv = "/path/to/data/common_ICD_covariate_ALL.csv"
 
-    cohort_sets = "/project/pmbb_codeworks/datasets/PMBB_Extra/Sample_Lists/Imputed_sample_table.csv"
+    cohort_sets = "/path/to/data/Imputed_sample_table.csv"
 
     // default paths are for PMBB Geno data
-    step1_plink_prefix  = "/project/pmbb_codeworks/datasets/pmbb_allwas_pheno/pruned_genotyped_plinkfiles/pruned_data"
-    step2_plink_prefix = "/project/pmbb_codeworks/datasets/pmbb_allwas_pheno/pruned_genotyped_plinkfiles/pruned_data"
+    step1_plink_prefix  = "/path/to/data/pruned_data"
+    step2_plink_prefix = "/path/to/data/pruned_data"
     
     // default paths for Imputed Geno data BGEN
-    step2_bgen_prefix  = "/static/PMBB/PMBB-Release-2020-2.0/Imputed/bgen/PMBB-Release-2020-2.0_genetic_imputed-topmed-r2_chr"
-    bgen_samplefile = "/static/PMBB/PMBB-Release-2020-2.0/Imputed/bgen/PMBB-Release-2020-2.0_genetic_imputed-topmed-r2_bgen.sample"
+    step2_bgen_prefix  = "/path/to/data/PMBB-Release-2020-2.0_genetic_imputed-topmed-r2_chr"
+    bgen_samplefile = "/path/to/data/PMBB-Release-2020-2.0_genetic_imputed-topmed-r2_bgen.sample"
     
     
     // categorical and continuous covariates
@@ -448,6 +440,8 @@ params {
     min_mac = 40
     firth_cutoff = 0.1
     LOCO = "TRUE"
+    is_imputed_data="TRUE" 
+    minInfo=0.3 
     inverseNormalize="TRUE"
 
  // this is for getting gene-based coordinates for plotting
@@ -472,10 +466,10 @@ params {
         ]
 
     // binary and quantitative phenotype lists
-    bin_pheno_list = "/project/pmbb_codeworks/datasets/pmbb_allwas_pheno/common_ICD_list.txt"
+    bin_pheno_list = "/path/to/data/common_ICD_list.txt"
     quant_pheno_list = []
 
-    sex_specific_pheno_file = "/project/pmbb_codeworks/datasets/pmbb_allwas_pheno/icd_Sex_specific.txt"
+    sex_specific_pheno_file = "/path/to/data/icd_Sex_specific.txt"
     
     gwas_col_names = [
         CHR: 'chromosome',
@@ -519,19 +513,19 @@ params {
 profiles {
     non_docker_dev {
         // run locally without docker
-        process.executor = 'local'
+        process.executor = awsbatch-or-lsf-or-slurm-etc
     }
 
     standard {
         // run locally with docker
-        process.executor = 'local'
+        process.executor = awsbatch-or-lsf-or-slurm-etc
         process.container = 'pennbiobank/saige:latest'
         docker.enabled = true
     }
 
     cluster {
         // run on LSF cluster
-        process.executor = 'lsf'
+        process.executor = awsbatch-or-lsf-or-slurm-etc
         process.queue = 'epistasis_normal'
         executor {
             queueSize=500
@@ -539,21 +533,21 @@ profiles {
         process.memory = '15GB'
     	process.container = 'saige.sif'
         singularity.enabled = true
-        singularity.runOptions = '-B /project/,/static/'
+        singularity.runOptions = '-B /root/,/directory/,/names/'
     }
 
     all_of_us {
         // CHANGE EVERY TIME! These are specific for each user, see docs
-        google.lifeSciences.serviceAccountEmail = 'pet-XXX-@terra.vpc-sc-XXXXXXXX.iam.gserviceaccount.com' // change to user-specific service email
-        workDir='gs://fc-secure/path/to/workdir' // change to your user-specific working directory in your workspace bucket
-        google.project = 'terra.vpc-sc-XXXXXXXX' // change to your user-specific project ID
+        google.lifeSciences.serviceAccountEmail = service@email.gservicaaccount.com
+        workDir = /path/to/workdir/ // can be gs://
+        google.project = terra project id
 
         // These should not be changed unless you are an advanced user
         process.container = 'gcr.io/verma-pmbb-codeworks-psom-bf87/saige:latest' // GCR SAIGE docker container (static)
 
         // these are AoU, GCR parameters that should NOT be changed
         process.memory = '15GB' // minimum memory per process (static)
-        process.executor = 'google-lifesciences' // AoU uses google-lifesciences (static)
+        process.executor = awsbatch-or-lsf-or-slurm-etc
         google.zone = "us-central1-a" // AoU uses central time zone (static)
         google.location = "us-central1"
         google.lifeSciences.debug = true 

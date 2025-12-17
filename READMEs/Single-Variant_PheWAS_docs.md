@@ -16,7 +16,7 @@ Please see
 ## Software Requirements
 
 
-* [Nextflow version 23.04.1.5866](https://www.nextflow.io/docs/latest/cli.html)
+* [Nextflow version 24.04.3](https://www.nextflow.io/docs/latest/cli.html)
 
 * [Singularity 3.8.3](https://sylabs.io/docs/) OR [Docker 4.30.0](https://docs.docker.com/)
 ## Commands for Running the Workflow
@@ -421,29 +421,6 @@ nextflow run $TOOLS_DIR/pmbb-nf-toolkit-saige-family/workflows/saige_variant_phe
 * `sex_strat_cat_covars` (Type: List)
 
     * Categorical covariates for sex stratified cohorts to ensure model converges
-### Post-Processing
-
-
-* `pheno_descriptions_file` (Type: File Path)
-
-    * file path to phenotype descriptions used for plotting and summary statistics
-
-    * Corresponding Input File: Phenotype Descriptions File
-
-        * File containing Phenotype notation,descriptions,and, categories (i.e Phe8.52,Intestinal infection due to C. difficile,Infection)
-
-        * Type: Data Table
-
-        * Format: csv
-
-        * File Header:
-
-
-        ```
-        PHENO,DESCRIPTION,CATEGORY
-        x1,description_x1,RED
-        x2,description_x2,BLUE
-        ```
 ### Pre-Processing
 
 
@@ -515,31 +492,6 @@ nextflow run $TOOLS_DIR/pmbb-nf-toolkit-saige-family/workflows/saige_variant_phe
 * `use_firth` (Type: Bool (R: TRUE or FALSE))
 
     * True to use firth logistic regression
-
-* `snplist` (Type: File Path)
-
-    * file path to list of variants to be analyzed
-
-    * Corresponding Input File: List of SNPs of Interest
-
-        * Tab seperated file with one row for each variant of interest containing the chromosome,start,stop, and rsid in the same format as your genetic data
-
-        * Type: Data Table
-
-        * Format: tsv
-
-        * File Header:
-
-
-        ```
-        1	0	0	rs1
-        1	0	1	rs1
-        1	0	2	rs2
-        1	0	3	rs3
-        1	0	5	rs4
-        1	0	5	rs5
-        1	0	6	rs6
-        ```
 ### Workflow
 
 
@@ -579,34 +531,34 @@ params {
     // gpu paramater either ON or OFF
     GPU = 'OFF'
     
-    data_csv = "/project/pmbb_codeworks/datasets/CodeWorks_Test_Data/cleaned_phewas_pheno_covars.csv"
-    cohort_sets = "/project/pmbb_codeworks/datasets/PMBB_Extra/Sample_Lists/Genotype_sample_table.csv"
+    data_csv = "/path/to/data/cleaned_phewas_pheno_covars.csv"
+    cohort_sets = "/path/to/data/Genotype_sample_table.csv"
 
     // binary and quantitative phenotype lists
-    // bin_pheno_list_file = "/project/pmbb_codeworks/datasets/CodeWorks_Test_Data/phecode_list_with_prefix.txt"
-    bin_pheno_list = "/project/pmbb_codeworks/projects/SAIGE_FAMILY_TESTING/SAIGE_Gene_PheWAS/test_20_phecodes.txt"
-    quant_pheno_list = "/project/pmbb_codeworks/datasets/PMBB_Extra/PheCodes_2.3/lab_list.txt"
-    pheno_descriptions_file = "/project/pmbb_codeworks/datasets/Ontology_Things/phecode_descriptions_categories.csv"
-    sex_specific_pheno_file = "/project/pmbb_codeworks/datasets/pmbb_allwas_pheno/phecode_Sex_specific.txt"
+    // bin_pheno_list_file = "/path/to/data/phecode_list_with_prefix.txt"
+    bin_pheno_list = "/path/to/data/test_20_phecodes.txt"
+    quant_pheno_list = "/path/to/data/lab_list.txt"
+    pheno_descriptions_file = "/path/to/data/phecode_descriptions_categories.csv"
+    sex_specific_pheno_file = "/path/to/data/phecode_Sex_specific.txt"
 
     //setting file type for step 2 (PLINK/BGEN)
     // ftype = "PLINK"
     ftype = "BGEN"
 
     // default paths are for PMBB Geno data (PLINK)
-    step1_plink_prefix  = "/static/PMBB/PMBB-Release-2020-2.0/Genotype/PMBB-Release-2020-2.0_genetic_genotype"
+    step1_plink_prefix  = "/path/to/data/PMBB-Release-2020-2.0_genetic_genotype"
 
     // default paths are for PMBB Geno data (BGEN)
-    step2_bgen_prefix  = "/project/ritchie_scratch2/PMBB/GSA_V2_45K_NoFilter/merged/bgen/test_subset/PMBB-Release-2020-2.0_genetic_imputed-topmed-r2_10Ksubset_"
-    samplefile = "/project/ritchie02/projects/gwPheWAS/PMBB-Release-2020-2.0_genetic_imputed-topmed-r2_bgen.sample"
-    step2_pgen_prefix = "/static/PMBB/PMBB-Release-2020-2.0/Imputed/pgen/PMBB-Release-2020-2.0_genetic_imputed-topmed-r2_" 
+    step2_bgen_prefix  = "/path/to/data/PMBB-Release-2020-2.0_genetic_imputed-topmed-r2_10Ksubset_"
+    samplefile = "/path/to/data/PMBB-Release-2020-2.0_genetic_imputed-topmed-r2_bgen.sample"
+    step2_pgen_prefix = "/path/to/data/PMBB-Release-2020-2.0_genetic_imputed-topmed-r2_" 
 
     // desired snps to extract for step 2 (tsv 4 columns, one snp per line: chr start stop rsid)
-    snplist = "/project/pmbb_codeworks/projects/geno_pheno_workbench_dev/SAIGE_FAMILY_GPU/AGMO.tsv"
+    snplist = "/path/to/data/AGMO.tsv"
     // step2_input_prefix = "AGMO" //arbitrary
-    step2_plink_prefix = "/project/pmbb_codeworks/projects/geno_pheno_workbench_dev/SAIGE_FAMILY_GPU/AGMO"
+    step2_plink_prefix = "/path/to/data/AGMO"
 
-    group_file_prefix = "/project/pmbb_codeworks/datasets/BRAVA_Variant_Annots/SAIGE_Sets/subset."
+    group_file_prefix = "/path/to/data/subset."
 
     info = 0.4
     // categorical and continuous covariates
@@ -671,8 +623,8 @@ params {
     step2_script = "/usr/local/bin/step2_SPAtests.R"
    
     use_sparse_GRM = false
-    // step1_sparse_grm = "/project/pmbb_codeworks/datasets/PMBB_Extra/SAIGE_Step0_Exome/output/PMBB_relatednessCutoff_0.125_2000_randomMarkersUsed.sparseGRM.mtx"
-    // step1_sparse_grm_samples = "/project/pmbb_codeworks/datasets/PMBB_Extra/SAIGE_Step0_Exome/output/PMBB_relatednessCutoff_0.125_2000_randomMarkersUsed.sparseGRM.mtx.sampleIDs.txt"
+    // step1_sparse_grm = "/path/to/data/PMBB_relatednessCutoff_0.125_2000_randomMarkersUsed.sparseGRM.mtx"
+    // step1_sparse_grm_samples = "/path/to/data/PMBB_relatednessCutoff_0.125_2000_randomMarkersUsed.sparseGRM.mtx.sampleIDs.txt"
    
     // Dictionary (Map) with default SAIGE Region column names mapped to new ones
     region_col_names = [
@@ -731,19 +683,19 @@ params {
 profiles {
     non_docker_dev {
         // run locally without docker
-        process.executor = 'local'
+        process.executor = awsbatch-or-lsf-or-slurm-etc
     }
 
     standard {
         // run locally with docker
-        process.executor = 'local'
+        process.executor = awsbatch-or-lsf-or-slurm-etc
         process.container = 'pennbiobank/saige:latest'
         docker.enabled = true
     }
 
     cluster {
         // run on LSF cluster
-        process.executor = 'lsf'
+        process.executor = awsbatch-or-lsf-or-slurm-etc
         process.queue = 'epistasis_normal'
         executor {
             queueSize=500
@@ -751,21 +703,21 @@ profiles {
         process.memory = '15GB'
     	process.container = 'saige.sif'
         singularity.enabled = true
-        singularity.runOptions = '-B /project/,/static/'
+        singularity.runOptions = '-B /root/,/directory/,/names/'
     }
 
     all_of_us {
         // CHANGE EVERY TIME! These are specific for each user, see docs
-        google.lifeSciences.serviceAccountEmail = 'pet-XXX-@terra.vpc-sc-XXXXXXXX.iam.gserviceaccount.com' // change to user-specific service email
-        workDir='gs://fc-secure/path/to/workdir' // change to your user-specific working directory in your workspace bucket
-        google.project = 'terra.vpc-sc-XXXXXXXX' // change to your user-specific project ID
+        google.lifeSciences.serviceAccountEmail = service@email.gservicaaccount.com
+        workDir = /path/to/workdir/ // can be gs://
+        google.project = terra project id
 
         // These should not be changed unless you are an advanced user
         process.container = 'gcr.io/verma-pmbb-codeworks-psom-bf87/saige:latest' // GCR SAIGE docker container (static)
 
         // these are AoU, GCR parameters that should NOT be changed
         process.memory = '15GB' // minimum memory per process (static)
-        process.executor = 'google-lifesciences' // AoU uses google-lifesciences (static)
+        process.executor = awsbatch-or-lsf-or-slurm-etc
         google.zone = "us-central1-a" // AoU uses central time zone (static)
         google.location = "us-central1"
         google.lifeSciences.debug = true 

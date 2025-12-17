@@ -90,7 +90,7 @@ ALL_SAIGE_COLS = ['phenotype', 'Region', 'Group', 'max_MAF', 'Pvalue',
                   'CHR', 'POS', 'MarkerID', 'Allele1', 'Allele2', 'AC_Allele2',
                   'AF_Allele2', 'MissingRate', 'BETA', 'SE', 'Tstat', 'var', 'p.value',
                   'p.value.NA', 'Is.SPA', 'AF_case', 'AF_ctrl', 'N_case', 'N_ctrl',
-                  'N_case_hom', 'N_case_het', 'N_ctrl_hom', 'N_ctrl_het', 'N']
+                  'N_case_hom', 'N_case_het', 'N_ctrl_hom', 'N_ctrl_het', 'N','N_event','N_censor','N_event_hom','N_event_het','N_censor_hom','N_censor_het']
 
 def make_output_groups(is_gene_burden, is_rare_vars, all_results, output_file_dict):
     """

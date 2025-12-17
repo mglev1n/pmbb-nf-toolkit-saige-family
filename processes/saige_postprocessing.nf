@@ -1,6 +1,13 @@
 process merge_and_filter_saige_gene_regions_output {
     publishDir "${launchDir}/${cohort_dir}/Sumstats/"
-    machineType 'n2-standard-4'
+    // needs dynamic memory {} allocation
+    maxRetries 5 // Retry up to 3 times
+    errorStrategy { task.exitStatus in 137..140 ? 'retry' : 'terminate' } // Retry on OOM-related exit codes
+    memory {
+        def base_mem = params.host == 'AOU' ? 63.GB : 24.GB
+        def attempt_mem = base_mem * task.attempt
+        return attempt_mem
+    }
     input:
         // variables
         tuple val(cohort_dir), val(pheno), val(chr_list), path(chr_inputs)
@@ -35,7 +42,14 @@ process merge_and_filter_saige_gene_regions_output {
 
 process merge_and_filter_saige_gene_singles_phewas_output {
     publishDir "${launchDir}/${cohort_dir}/Sumstats/"
-    machineType 'n2-standard-4'
+    // needs dynamic memory {} allocation
+    maxRetries 5 // Retry up to 5 times
+    errorStrategy { task.exitStatus in 137..140 ? 'retry' : 'terminate' } // Retry on OOM-related exit codes
+    memory {
+        def base_mem = params.host == 'AOU' ? 63.GB : 24.GB
+        def attempt_mem = base_mem * task.attempt
+        return attempt_mem
+    }
     input:
         // variables
         tuple val(cohort_dir), val(chr), path(chr_inputs)
@@ -69,7 +83,14 @@ process merge_and_filter_saige_gene_singles_phewas_output {
 
 process merge_and_filter_saige_gene_regions_phewas_output {
     publishDir "${launchDir}/${cohort_dir}/Sumstats/"
-    machineType 'n2-standard-4'
+    // needs dynamic memory {} allocation
+    maxRetries 5 // Retry up to 5 times
+    errorStrategy { task.exitStatus in 137..140 ? 'retry' : 'terminate' } // Retry on OOM-related exit codes
+    memory {
+        def base_mem = params.host == 'AOU' ? 63.GB : 24.GB
+        def attempt_mem = base_mem * task.attempt
+        return attempt_mem
+    }
     input:
         // variables
         tuple val(cohort_dir), val(chr), path(pheno_inputs)
@@ -105,7 +126,14 @@ process merge_and_filter_saige_gene_regions_phewas_output {
 
 process merge_and_filter_saige_gene_singles_output {
     publishDir "${launchDir}/${cohort_dir}/Sumstats/"
-    machineType 'n2-standard-4'
+    // needs dynamic memory {} allocation
+    maxRetries 5 // Retry up to 5 times
+    errorStrategy { task.exitStatus in 137..140 ? 'retry' : 'terminate' } // Retry on OOM-related exit codes
+    memory {
+        def base_mem = params.host == 'AOU' ? 63.GB : 24.GB
+        def attempt_mem = base_mem * task.attempt
+        return attempt_mem
+    }
     input:
         // variables
         tuple val(cohort_dir), val(pheno), val(chr_list), path(chr_inputs)
@@ -138,8 +166,14 @@ process merge_and_filter_saige_gene_singles_output {
 
 process merge_and_filter_saige_gwas_output {
     publishDir "${launchDir}/${cohort_dir}/Sumstats/"
-    machineType 'n2-standard-16'
-    memory '200GB'
+    // needs dynamic memory {} allocation
+    maxRetries 5 // Retry up to 5 times
+    errorStrategy { task.exitStatus in 137..140 ? 'retry' : 'terminate' } // Retry on OOM-related exit codes
+    memory {
+        def base_mem = params.host == 'AOU' ? 63.GB : 24.GB
+        def attempt_mem = base_mem * task.attempt
+        return attempt_mem
+    }
     input:
         // variables
         tuple val(cohort_dir), val(pheno), val(chr_list), path(chr_inputs)
@@ -170,7 +204,6 @@ process merge_and_filter_saige_gwas_output {
 
 process gzipFiles {
     publishDir "${launchDir}/${cohort_dir}/Saige_Step2_Results/"
-    machineType 'n2-standard-16'
 
     input:
     path(file_path)
@@ -197,7 +230,14 @@ process gzipFiles {
 
 process merge_and_filter_saige_variant_phewas_output {
     publishDir "${launchDir}/${cohort_dir}/Sumstats/"
-    machineType 'n2-standard-4'
+    // needs dynamic memory {} allocation
+    maxRetries 5 // Retry up to 3 times
+    errorStrategy { task.exitStatus in 137..140 ? 'retry' : 'terminate' } // Retry on OOM-related exit codes
+    memory {
+        def base_mem = params.host == 'AOU' ? 63.GB : 24.GB
+        def attempt_mem = base_mem * task.attempt
+        return attempt_mem
+    }
     input:
         // variables
         tuple val(cohort_dir), val(pheno), val(chr), path(chr_inputs)
@@ -227,7 +267,6 @@ process merge_and_filter_saige_variant_phewas_output {
 
 process make_summary_regions_output {
     publishDir "${launchDir}/Summary/"
-    machineType 'n2-standard-4'
     label 'safe_to_skip'
     input:
         path(filtered_regions)
@@ -262,7 +301,6 @@ process make_summary_regions_output {
 
 process make_summary_singles_output {
     publishDir "${launchDir}/Summary/"
-    machineType 'n2-standard-4'
     label 'safe_to_skip'
     input:
         //stageAs: '?/*'
@@ -293,7 +331,6 @@ process make_summary_singles_output {
 
 process make_summary_suggestive_gwas {
     publishDir "${launchDir}/Summary/"
-    machineType 'n2-standard-4'
     label 'safe_to_skip'
     input:
         path(filtered_singles)
@@ -323,7 +360,6 @@ process make_summary_suggestive_gwas {
 
 process gwas_make_biofilter_positions_input {
     publishDir "${launchDir}/Annotations/"
-    machineType 'n2-standard-4'
     label 'safe_to_skip'
     input:
         //, stageAs: "?/*"
@@ -356,7 +392,6 @@ process gwas_make_biofilter_positions_input {
 
 process make_summary_table_with_annot {
     publishDir "${launchDir}/Summary/"
-    machineType 'n2-standard-4'
     label 'safe_to_skip'
     input:
         path(all_filtered_sumstats)

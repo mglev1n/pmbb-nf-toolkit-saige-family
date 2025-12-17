@@ -14,7 +14,7 @@ SAIGE ExWAS is a pipeline for doing whole-exome association study of rare varian
 ## Software Requirements
 
 
-* [Nextflow version 23.04.1.5866](https://www.nextflow.io/docs/latest/cli.html)
+* [Nextflow version 24.04.3](https://www.nextflow.io/docs/latest/cli.html)
 
 * [Singularity 3.8.3](https://sylabs.io/docs/) OR [Docker 4.30.0](https://docs.docker.com/)
 ## Commands for Running the Workflow
@@ -566,10 +566,6 @@ nextflow run $TOOLS_DIR/pmbb-nf-toolkit-saige-family/workflows/saige_exwas.nf \
         ENSG00000000460 var     1_169795119_C_T 1_169795121_G_C 1_169795123_C_G
         ENSG00000000460 anno    other_missense  other_missense  other_missense
         ```
-
-* `hwe` (Type: Float)
-
-    * Plink parameters for SAIGE Step 1 Input QC which needs a small set of high-quality variants
 ### SAIGE Step 2
 
 
@@ -594,10 +590,6 @@ nextflow run $TOOLS_DIR/pmbb-nf-toolkit-saige-family/workflows/saige_exwas.nf \
 * `bin_pheno_list` (Type: List)
 
     * Binary phenotype list
-
-* `quant_pheno_list` (Type: List)
-
-    * Quantitative phenotype list
 # Configuration and Advanced Workflow Files
 
 ## Example Config File Contents (From Path)
@@ -609,14 +601,14 @@ params {
     // DATA FILES
     // ----------
     // all default paths are for PMBB WES
-    data_csv = "/project/pmbb_codeworks/datasets/CodeWorks_Test_Data/cleaned_test_pheno_covars.csv"
-    // data_csv = "/project/pmbb_codeworks/datasets/pmbb_allwas_pheno/common_phecodes_covariate_ALL.csv"
+    data_csv = "/path/to/data/cleaned_test_pheno_covars.csv"
+    // data_csv = "/path/to/data/common_phecodes_covariate_ALL.csv"
     
     // cohort sets
-    cohort_sets = "/project/pmbb_codeworks/datasets/PMBB_Extra/Sample_Lists/Exome_sample_table.csv"
+    cohort_sets = "/path/to/data/Exome_sample_table.csv"
     
     // this is for getting gene-based coordinates for plotting
-    gene_location_file = "/project/pmbb_codeworks/datasets/ENSEMBL/homo_sapiens_111_b38.txt"
+    gene_location_file = "/path/to/data/homo_sapiens_111_b38.txt"
 
     // ID column label
     id_col = "PMBB_ID"
@@ -656,11 +648,11 @@ params {
     // chromosome_list = ["22"]
 
     // binary and quantitative phenotype [lists] or path to file of newline-separated lists
-    // bin_pheno_list = "/project/pmbb_codeworks/datasets/pmbb_allwas_pheno/common_phecodes_list.txt"
+    // bin_pheno_list = "/path/to/data/common_phecodes_list.txt"
     bin_pheno_list = ["T2D", "AAA"]
     quant_pheno_list = ["BMI_median", "LDL_median"]
     // sex_specific pheno file - these will be skipped for _ALL cohorts
-    sex_specific_pheno_file = "/project/pmbb_codeworks/datasets/pmbb_allwas_pheno/phecode_Sex_specific.txt"
+    sex_specific_pheno_file = "/path/to/data/phecode_Sex_specific.txt"
 
     // categorical and continuous covariates
     cat_covars = ["SEX"]
@@ -687,17 +679,17 @@ params {
     // Config parameters for using precomputed sparse GRM:
     // use_sparse_GRM = true
     // step 1 path should be the small subset of markers used to fit the GRM
-    // step1_plink_prefix = "/project/pmbb_codeworks/datasets/PMBB_Extra/SAIGE_Step0_Exome/input/PMBB_exome_random_autosomal_markers"
-    // step1_sparse_grm = "/project/pmbb_codeworks/datasets/PMBB_Extra/SAIGE_Step0_Exome/output/PMBB_relatednessCutoff_0.125_2000_randomMarkersUsed.sparseGRM.mtx"
-    // step1_sparse_grm_samples = "/project/pmbb_codeworks/datasets/PMBB_Extra/SAIGE_Step0_Exome/output/PMBB_relatednessCutoff_0.125_2000_randomMarkersUsed.sparseGRM.mtx.sampleIDs.txt"
+    // step1_plink_prefix = "/path/to/data/PMBB_exome_random_autosomal_markers"
+    // step1_sparse_grm = "/path/to/data/PMBB_relatednessCutoff_0.125_2000_randomMarkersUsed.sparseGRM.mtx"
+    // step1_sparse_grm_samples = "/path/to/data/PMBB_relatednessCutoff_0.125_2000_randomMarkersUsed.sparseGRM.mtx.sampleIDs.txt"
 
     // Config parameters for using real-time FULL GRM:
     use_sparse_GRM = false
 
     // Genetic Data Inputs:
     // Without a GRM, the exome plink set is used for step 1 because it needs rare variants
-    exome_plink_prefix = "/project/pmbb_codeworks/datasets/PMBB-2.0_exome_GL_norm/plink/PMBB-Release-2020-2.0_genetic_exome_GL_norm"
-    group_file_prefix = "/project/pmbb_codeworks/datasets/New_VEP_Annotations_2.0/SAIGE_Sets/subset."
+    exome_plink_prefix = "/path/to/data/PMBB-Release-2020-2.0_genetic_exome_GL_norm"
+    group_file_prefix = "/path/to/data/subset."
     
     // Plink parameters for SAIGE Step 1 Input QC which needs a small set of high-quality variants
     // Current defaults are recommended by GBMI analysis plan
@@ -777,19 +769,19 @@ params {
 profiles {
     non_docker_dev {
         // run locally without docker
-        process.executor = 'local'
+        process.executor = awsbatch-or-lsf-or-slurm-etc
     }
 
     standard {
         // run locally with docker
-        process.executor = 'local'
+        process.executor = awsbatch-or-lsf-or-slurm-etc
         process.container = 'pennbiobank/saige:latest'
         docker.enabled = true
     }
 
     cluster {
         // run on LSF cluster
-        process.executor = 'lsf'
+        process.executor = awsbatch-or-lsf-or-slurm-etc
         process.queue = 'epistasis_normal'
         executor {
             queueSize=500
@@ -797,21 +789,21 @@ profiles {
         process.memory = '15GB'
     	process.container = 'saige.sif'
         singularity.enabled = true
-        singularity.runOptions = '-B /project/,/static/'
+        singularity.runOptions = '-B /root/,/directory/,/names/'
     }
 
     all_of_us {
         // CHANGE EVERY TIME! These are specific for each user, see docs
-        google.lifeSciences.serviceAccountEmail = 'pet-XXX-@terra.vpc-sc-XXXXXXXX.iam.gserviceaccount.com' // change to user-specific service email
-        workDir='gs://fc-secure/path/to/workdir' // change to your user-specific working directory in your workspace bucket
-        google.project = 'terra.vpc-sc-XXXXXXXX' // change to your user-specific project ID
+        google.lifeSciences.serviceAccountEmail = service@email.gservicaaccount.com
+        workDir = /path/to/workdir/ // can be gs://
+        google.project = terra project id
 
         // These should not be changed unless you are an advanced user
         process.container = 'gcr.io/verma-pmbb-codeworks-psom-bf87/saige:latest' // GCR SAIGE docker container (static)
 
         // these are AoU, GCR parameters that should NOT be changed
         process.memory = '15GB' // minimum memory per process (static)
-        process.executor = 'google-lifesciences' // AoU uses google-lifesciences (static)
+        process.executor = awsbatch-or-lsf-or-slurm-etc
         google.zone = "us-central1-a" // AoU uses central time zone (static)
         google.location = "us-central1"
         google.lifeSciences.debug = true 

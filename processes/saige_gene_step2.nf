@@ -1,6 +1,5 @@
 process filter_chr_group_file {
     publishDir "${launchDir}/PheWAS_GroupFiles/"
-    machineType 'n2-standard-4'
     input:
         tuple val(chr), path(chr_group_file)
         path(gene_list_file)
@@ -29,7 +28,7 @@ process filter_chr_group_file {
 
 process call_saige_gene_step2_bin {
     // publishDir "${launchDir}/${cohort_dir}/Saige_Gene_Results/"
-    machineType 'n2-standard-4'
+    label 'saige_process'
     input:
         // variables
         tuple val(cohort_dir), val(pheno), path(step1_rda), path(step1_var), val(chr)
@@ -43,7 +42,7 @@ process call_saige_gene_step2_bin {
     shell:
         """
 
-        stdbuf -e0 -o0 Rscript ${params.step2_script} \
+        stdbuf -e0 -o0 ${params.step2_script} \
          --bedFile=${plink_bed} \
          --bimFile=${plink_bim} \
          --famFile=${plink_fam} \
@@ -79,7 +78,7 @@ process call_saige_gene_step2_bin {
 
 process call_saige_gene_step2_quant {
     // publishDir "${launchDir}/${cohort_dir}/Saige_Gene_Results/"
-    machineType 'n2-standard-4'
+    label 'saige_process'
     input:
         // variables
         tuple val(cohort_dir), val(pheno), path(step1_rda), path(step1_var), val(chr)
@@ -92,7 +91,7 @@ process call_saige_gene_step2_quant {
         tuple val(cohort_dir), val(pheno), val(chr), path("${cohort_dir}.${pheno}.${chr}.log")
     shell:
         """
-        stdbuf -e0 -o0 Rscript ${params.step2_script} \
+        stdbuf -e0 -o0 ${params.step2_script} \
          --bedFile=${plink_bed} \
          --bimFile=${plink_bim} \
          --famFile=${plink_fam} \
@@ -126,7 +125,7 @@ process call_saige_gene_step2_quant {
 
 process call_saige_gene_step2_bin_with_sparse_GRM {
     // publishDir "${launchDir}/${cohort_dir}/Saige_Gene_Results/"
-    machineType 'n2-standard-4'
+    label 'saige_process'
     input:
         // variables, step 1 outputs
         tuple val(cohort_dir), val(pheno), path(step1_rda), path(step1_var), val(chr)
@@ -140,7 +139,7 @@ process call_saige_gene_step2_bin_with_sparse_GRM {
         tuple val(cohort_dir), val(pheno), val(chr), path("${cohort_dir}.${pheno}.${chr}.log")
     shell:
         """
-        stdbuf -e0 -o0 Rscript ${params.step2_script} \
+        stdbuf -e0 -o0 ${params.step2_script} \
          --sparseGRMFile=${sparse_grm} \
          --sparseGRMSampleIDFile=${sparse_grm_samples} \
          --bedFile=${plink_bed} \
@@ -178,7 +177,7 @@ process call_saige_gene_step2_bin_with_sparse_GRM {
 
 process call_saige_gene_step2_quant_with_sparse_GRM {
     publishDir "${launchDir}/${cohort_dir}/Saige_Gene_Results/"
-    machineType 'n2-standard-4'
+    label 'saige_process'
     input:
         // variables, step 1 outputs
         tuple val(cohort_dir), val(pheno), path(step1_rda), path(step1_var), val(chr)
@@ -192,7 +191,7 @@ process call_saige_gene_step2_quant_with_sparse_GRM {
         tuple val(cohort_dir), val(pheno), val(chr), path("${cohort_dir}.${pheno}.${chr}.log")
     shell:
         """
-        stdbuf -e0 -o0 Rscript ${params.step2_script} \
+        stdbuf -e0 -o0 ${params.step2_script} \
         --sparseGRMFile=${sparse_grm} \
         --sparseGRMSampleIDFile=${sparse_grm_samples} \
         --bedFile=${plink_bed} \

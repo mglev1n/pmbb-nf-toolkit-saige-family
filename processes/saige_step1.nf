@@ -1,7 +1,9 @@
 process plink_qc_for_step1 {
     publishDir "${launchDir}/${cohort}/Saige_Step1/", enabled: {params.host != 'AOU'}
-    machineType 'n2-standard-4'
+    label 'step1_plink_qc'
+    cpus 16
     memory { params.host == 'AOU' ? '63GB' : '24GB' }
+
     input:
         // variables
         tuple val(cohort_dir), path(sample_list)
@@ -16,7 +18,8 @@ process plink_qc_for_step1 {
         tuple val(cohort_dir), path('step1_plink.{bed,bim,fam}')
         path 'plink_qc.log'
     script:
-        use_mem = params.host == 'AOU' ? '62000' : '23000'
+        // use_mem = params.host == 'AOU' ? '62000' : '23000'
+        use_mem = Math.floor(task.memory.toMega() * 0.85) // 85% of allocated memory in MB
         is_max_vars_null = params.max_vars_for_GRM == null ? 'YES' : 'NO'
         use_max_vars = params.max_vars_for_GRM == null ? '150000' : params.max_vars_for_GRM
         use_min_vars = params.min_vars_for_GRM == null ? '30000' : params.min_vars_for_GRM
@@ -61,7 +64,7 @@ process plink_qc_for_step1 {
             echo "INFO: \$num_maf < 150000. Using all \${num_maf} variants for GRM construction"
             cp step1_pruning.prune.in  step1.markerid.list
         
-        # if the number of variants is greater than the maximum, and a maximum is set, then use entire set
+        # if the number of variants is less than or equal to the maximum, and a maximum is set, then use entire set
         elif [ "${is_max_vars_null}" = "NO" ] && [ "\$num_maf" -lt ${use_max_vars} ] || [ "\$num_maf" -eq ${use_max_vars} ]; then
             echo "INFO: \$num_maf <= ${use_max_vars}. Using all \${num_maf} variants for GRM construction"
             cp step1_pruning.prune.in  step1.markerid.list
@@ -95,8 +98,16 @@ process plink_qc_for_step1 {
 
 process plink_qc_for_step1_saige_gene {
     publishDir "${launchDir}/${cohort}/Saige_Step1/", enabled: {params.host != 'AOU'}
-    machineType 'n2-standard-16'
-    memory { params.host == 'AOU' ? '63GB' : '24GB' }
+    label 'step1_plink_qc'
+    cpus 16
+    // needs dynamic memory {} allocation
+    maxRetries 5 // Retry up to 5 times
+    errorStrategy { task.exitStatus in 137..140 ? 'retry' : 'terminate' }
+    memory {
+        def base_mem = params.host == 'AOU' ? 63.GB : 24.GB
+        def attempt_mem = base_mem * task.attempt
+        return attempt_mem
+    }
     input:
         // variables
         tuple val(cohort_dir), path(sample_list)
@@ -111,7 +122,8 @@ process plink_qc_for_step1_saige_gene {
         tuple val(cohort_dir), path('step1_plink.{bed,bim,fam}')
         path 'plink_qc.log'
     script:
-        use_mem = params.host == 'AOU' ? '62000' : '23000'
+        // use_mem = params.host == 'AOU' ? '62000' : '23000'
+        use_mem = Math.floor(task.memory.toMega() * 0.85) // 95% of allocated memory in MB
         is_max_vars_null = params.max_vars_for_GRM == null ? 'YES' : 'NO'
         use_max_vars = params.max_vars_for_GRM == null ? '150000' : params.max_vars_for_GRM
         use_min_vars = params.min_vars_for_GRM == null ? '30000' : params.min_vars_for_GRM
@@ -171,17 +183,17 @@ process plink_qc_for_step1_saige_gene {
         # if the number of variants is less than the maximum, and no maximum is set, then use all variants
         elif [ "${is_max_vars_null}" = "YES" ] && [ "\$num_maf" -lt 150000 ]; then
             echo "INFO: \$num_maf < 150000. Using all \${num_maf} variants for GRM construction"
-            cp step1_pruning.prune.in  step1.markerid.list
+            cp prune_and_maf.txt  step1.markerid.list
         
-        # if the number of variants is greater than the maximum, and a maximum is set, then use entire set
+        # if the number of variants is less than or equal to the maximum, and a maximum is set, then use entire set
         elif [ "${is_max_vars_null}" = "NO" ] && [ "\$num_maf" -lt ${use_max_vars} ] || [ "\$num_maf" -eq ${use_max_vars} ]; then
             echo "INFO: \$num_maf <= ${use_max_vars}. Using all \${num_maf} variants for GRM construction"
-            cp step1_pruning.prune.in  step1.markerid.list
+            cp prune_and_maf.txt  step1.markerid.list
         
         # if the number of variants is greater than the maximum, and a maximum is set, then randomly subset down to maximum
         elif [ "${is_max_vars_null}" = "NO" ] && [ "\$num_maf" -gt ${use_max_vars} ]; then
             echo "INFO: \$num_maf > ${use_max_vars}, randomly selecting ${use_max_vars} variants"
-            shuf -n ${use_max_vars} step1_pruning.prune.in > step1.markerid.list
+            shuf -n ${use_max_vars} prune_and_maf.txt > step1.markerid.list
         fi
 
         # Copy the filtered IDs to the output file
@@ -207,32 +219,38 @@ process plink_qc_for_step1_saige_gene {
         '''
 }
 
+
 String get_covar_list_args(String cohort, cohort_cat_covars, cohort_cont_covars) {
     String output = ''
 
+    // if there are either continuous or categorical covariates, then add them to the covarColList
     if (cohort_cont_covars.size() > 0 || cohort_cat_covars.size() > 0) {
         output += '--covarColList='
+        
+        // Collect all covariates in a list first
+        def all_covars = []
         if (cohort_cont_covars.size() > 0) {
-            output += cohort_cont_covars.join(',')
+            all_covars.addAll(cohort_cont_covars)
         }
         if (cohort_cat_covars.size() > 0) {
-            output += ',' + cohort_cat_covars.join(',') + ' '
+            all_covars.addAll(cohort_cat_covars)
         }
-        else {
-            output += ' '
-        }
+        
+        output += all_covars.join(',') + ' '
     }
 
+    // if there are categorical covariates, then add them to the qCovarColList
+    // note that qCovarColList is a list of categorical covariates, while covarColList is a list of all covariates (continuous and categorical)
     if (cohort_cat_covars.size() > 0) {
         output += '--qCovarColList=' + cohort_cat_covars.join(',') + ' '
     }
 
     return output
 }
+
 /*
 process call_saige_step1_bin {
     publishDir "${launchDir}/${cohort}/Saige_Step1/", enabled: {params.host != 'AOU'}
-    machineType 'n2-standard-4'
 
     label(params.GPU == 'ON' ? 'gpu_on' : 'gpu_off')
 
@@ -286,8 +304,8 @@ process call_saige_step1_bin {
         """
 }
 */
+
 process dnanexus_skip_plink_qc_for_step1 {
-    machineType 'n2-standard-4'
     input:
         // variables
         tuple val(cohort_dir), path(sample_list)
@@ -320,7 +338,7 @@ process dnanexus_skip_plink_qc_for_step1 {
     echo "PLINK file check completed successfully." > plink_qc.log
     """
 
-stub:
+    stub:
         '''
         touch step1_plink.bed
         touch step1_plink.bim
@@ -331,7 +349,6 @@ stub:
 
 process dnanexus_skip_step1_quant {
     //for this to work, output files must exist in the launch dir
-    machineType 'n2-standard-4'
     input:
         // variables
         tuple val(cohort), val(pheno), path(plink_set), path(samples), path(pheno_file)
@@ -356,13 +373,13 @@ process dnanexus_skip_step1_quant {
     echo "STEP 1 file check completed successfully." > step1.log
     """
 
-stub:
-    """
-    touch ${pheno}.varianceRatio.txt
-    touch ${pheno}.rda
-    touch ${pheno}.log
-    touch step1.log
-    """
+    stub:
+        """
+        touch ${pheno}.varianceRatio.txt
+        touch ${pheno}.rda
+        touch ${pheno}.log
+        touch step1.log
+        """
 }
 
 process dnanexus_skip_step1_bin {
@@ -394,10 +411,11 @@ process dnanexus_skip_step1_bin {
 
 process call_saige_step1_bin {
     publishDir "${launchDir}/${cohort}/Saige_Step1/", enabled: {params.host != 'AOU'}
-    // errorStrategy 'retry'
-    machineType 'n2-standard-16'
+    label 'saige_step1'
+    label 'saige_process'
     memory { params.host == 'AOU' ? '63GB' : '24GB' }
-    cpus 15
+    cpus 16
+    
     input:
         // variables
         tuple val(cohort), val(pheno), path(plink_set), path(samples), path(pheno_file)
@@ -407,7 +425,10 @@ process call_saige_step1_bin {
         tuple val(cohort), val(pheno), path("${pheno}.rda"), path("${pheno}.varianceRatio.txt")
         path "${pheno}.log"
     shell:
-        use_mem = params.host == 'AOU' ? '56' : '16'
+        // use_mem = params.host == 'AOU' ? '56' : '16'
+        use_mem = Math.floor(task.memory.toGiga() * 0.85) // 95% of allocated memory in GB
+        // Calculate nThreads as task.cpus - 1, with a minimum of 1
+        use_threads = Math.max(1, task.cpus - 1)
         covariate_args = get_covar_list_args(cohort,
             params.sex_strat_cohort_list.contains(cohort) ? params.sex_strat_cat_covars : params.cat_covars,
             params.sex_strat_cohort_list.contains(cohort) ? params.sex_strat_cont_covars : params.cont_covars)
@@ -460,14 +481,14 @@ process call_saige_step1_bin {
             --IsOverwriteVarianceRatioFile=TRUE > ${pheno}.log
         elif [ "${params.GPU}" = "OFF" ]; then
             echo "${cohort}-${pheno}"
-            stdbuf -e0 -o0 Rscript ${params.step1_script} \
+            stdbuf -e0 -o0 ${params.step1_script} \
             --plinkFile=step1_plink \
             --phenoFile=${pheno_file} \
             --phenoCol=${pheno} \
             ${covariate_args} \
             ${vr_flag} \
             --memoryChunk=${use_mem} \
-            --nThreads=14 \
+            --nThreads=${use_threads} \
             --minMAFforGRM=${params.maf} \
             --maxMissingRateforGRM=${params.geno} \
             --sampleIDColinphenoFile=${params.id_col} \
@@ -488,9 +509,12 @@ process call_saige_step1_bin {
 
 process call_saige_step1_quant {
     publishDir "${launchDir}/${cohort}/Saige_Step1/", enabled: {params.host != 'AOU'}
-    machineType 'n2-standard-16'
+    label 'saige_step1'
+    label 'saige_process'
+    // errorStrategy 'retry'
     memory { params.host == 'AOU' ? '63GB' : '24GB' }
-    cpus 15
+
+    cpus 16
 
     input:
         // variables
@@ -501,7 +525,10 @@ process call_saige_step1_quant {
         tuple val(cohort), val(pheno), path("${pheno}.rda"), path("${pheno}.varianceRatio.txt")
         path "${pheno}.log"
     shell:
-        use_mem = params.host == 'AOU' ? '56' : '16'
+        // Calculate memory 
+        use_mem = Math.floor(task.memory.toGiga() * 0.85) // 95% of allocated memory in GB
+        // Calculate nThreads as task.cpus - 1, with a minimum of 1
+        use_threads = Math.max(1, task.cpus - 1)
         covariate_args = get_covar_list_args(cohort,
             params.sex_strat_cohort_list.contains(cohort) ? params.sex_strat_cat_covars : params.cat_covars,
             params.sex_strat_cohort_list.contains(cohort) ? params.sex_strat_cont_covars : params.cont_covars)
@@ -525,7 +552,7 @@ process call_saige_step1_quant {
             --IsOverwriteVarianceRatioFile=TRUE > ${pheno}.log
         elif [ "${params.GPU}" = "OFF" ]; then
             echo "${cohort}-${pheno}"
-            stdbuf -e0 -o0 Rscript ${params.step1_script} \
+            stdbuf -e0 -o0 ${params.step1_script} \
             --plinkFile=step1_plink \
             --phenoFile=${pheno_file} \
             --phenoCol=${pheno} \
@@ -537,7 +564,7 @@ process call_saige_step1_quant {
             --traitType=quantitative \
             --outputPrefix=${pheno} \
             --memoryChunk=${use_mem} \
-            --nThreads=14 \
+            --nThreads=${use_threads} \
             --LOCO=${params.LOCO} \
             --invNormalize=TRUE \
             --IsOverwriteVarianceRatioFile=TRUE > ${pheno}.log
@@ -554,10 +581,12 @@ process call_saige_step1_quant {
 
 process call_saige_step1_survival {
     publishDir "${launchDir}/${cohort}/Saige_Step1/", enabled: {params.host != 'AOU'}
-    machineType 'n2-standard-16'
-    memory { params.host == 'AOU' ? '63GB' : '24GB' }
-    cpus 15
+    label 'saige_step1'
+    label 'saige_process'
     // errorStrategy 'retry'
+    memory { params.host == 'AOU' ? '63GB' : '24GB' }
+
+    cpus 16
 
     input:
         // variables
@@ -568,7 +597,9 @@ process call_saige_step1_survival {
         tuple val(cohort), val(pheno), path("${pheno}.rda"), path("${pheno}.varianceRatio.txt")
         path "${pheno}.log"
     shell:
-        use_mem = params.host == 'AOU' ? '56' : '16'
+        use_mem = Math.floor(task.memory.toGiga() * 0.85) // 95% of allocated memory in GB
+        // Calculate nThreads as task.cpus - 1, with a minimum of 1
+        use_threads = Math.max(1, task.cpus - 1)
         covariate_args = get_covar_list_args(cohort,
             params.sex_strat_cohort_list.contains(cohort) ? params.sex_strat_cat_covars : params.cat_covars,
             params.sex_strat_cohort_list.contains(cohort) ? params.sex_strat_cont_covars : params.cont_covars)
@@ -591,7 +622,7 @@ process call_saige_step1_survival {
             --eventTimeCol=${params.event_time_col} \
             --eventTimeBinSize=${params.event_time_bin} \
             --invNormalize=TRUE \
-            --nThreads=29 \
+            --nThreads=${use_threads} \
             --IsOverwriteVarianceRatioFile=TRUE > ${pheno}.log
         elif [ "${params.GPU}"  = "ON" ] &&  [ "${params.host}" = "DNAnexus" ]; then
             mpirun -n 8 --allow-run-as-root \
@@ -614,7 +645,7 @@ process call_saige_step1_survival {
             --IsOverwriteVarianceRatioFile=TRUE > ${pheno}.log
         elif [ "${params.GPU}" = "OFF" ]; then
             echo "${cohort}-${pheno}"
-            stdbuf -e0 -o0 Rscript ${params.step1_script} \
+            stdbuf -e0 -o0 ${params.step1_script} \
             --plinkFile=step1_plink \
             --phenoFile=${pheno_file} \
             --phenoCol=${pheno} \
@@ -629,7 +660,7 @@ process call_saige_step1_survival {
             --eventTimeBinSize=${params.event_time_bin} \
             --invNormalize=TRUE \
             --LOCO=${params.LOCO} \
-            --nThreads=29 \
+            --nThreads=${use_threads} \
             --IsOverwriteVarianceRatioFile=TRUE > ${pheno}.log
         fi
         """
@@ -643,8 +674,9 @@ process call_saige_step1_survival {
 
 process call_saige_step1_bin_with_sparse_GRM {
     publishDir "${launchDir}/${cohort}/Saige_Step1/", enabled: {params.host != 'AOU'}
-    machineType 'n2-standard-4'
-    cpus 1
+    label 'saige_step1'
+    label 'saige_process'
+    cpus 16
 
     input:
         // variables
@@ -660,12 +692,14 @@ process call_saige_step1_bin_with_sparse_GRM {
             params.sex_strat_cohort_list.contains(cohort) ? params.sex_strat_cat_covars : params.cat_covars,
             params.sex_strat_cohort_list.contains(cohort) ? params.sex_strat_cont_covars : params.cont_covars)
         vr_flag = is_gene ? '--isCateVarianceRatio=TRUE' : '--isCateVarianceRatio=FALSE'
+        use_threads = Math.max(1, task.cpus - 1)
         """
         echo "${cohort}-${pheno}"
-        stdbuf -e0 -o0 Rscript ${params.step1_script} \
+        stdbuf -e0 -o0 ${params.step1_script} \
          --sparseGRMFile=${sparse_grm} \
          --sparseGRMSampleIDFile=${sparse_grm_samples} \
          --useSparseGRMtoFitNULL=TRUE \
+         --useSparseGRMforVarRatio=TRUE \
          --plinkFile=${plink_set[0].toString().replace('.bed', '')} \
          --phenoFile=${pheno_file} \
          --phenoCol=${pheno} \
@@ -674,7 +708,7 @@ process call_saige_step1_bin_with_sparse_GRM {
          --sampleIDColinphenoFile=${params.id_col} \
          --traitType=binary \
          --outputPrefix=${pheno} \
-         --nThreads=29 \
+         --nThreads=${use_threads} \
          --IsOverwriteVarianceRatioFile=TRUE > ${pheno}.log
         """
     stub:
@@ -687,8 +721,9 @@ process call_saige_step1_bin_with_sparse_GRM {
 
 process call_saige_step1_quant_with_sparse_GRM {
     publishDir "${launchDir}/${cohort}/Saige_Step1/", enabled: {params.host != 'AOU'}
-    machineType 'n2-standard-4'
-    cpus 1
+    label 'saige_step1'
+    label 'saige_process'
+    cpus 16
 
     input:
         // variables
@@ -700,16 +735,18 @@ process call_saige_step1_quant_with_sparse_GRM {
         tuple val(cohort), val(pheno), path("${pheno}.rda"), path("${pheno}.varianceRatio.txt")
         path "${pheno}.log"
     shell:
+        use_threads = Math.max(1, task.cpus - 1)
         covariate_args = get_covar_list_args(cohort,
             params.sex_strat_cohort_list.contains(cohort) ? params.sex_strat_cat_covars : params.cat_covars,
             params.sex_strat_cohort_list.contains(cohort) ? params.sex_strat_cont_covars : params.cont_covars)
         vr_flag = is_gene ? '--isCateVarianceRatio=TRUE' : '--isCateVarianceRatio=FALSE'
         """
         echo "${cohort}-${pheno}"
-        stdbuf -e0 -o0 Rscript ${params.step1_script} \
+        stdbuf -e0 -o0 ${params.step1_script} \
          --sparseGRMFile=${sparse_grm} \
          --sparseGRMSampleIDFile=${sparse_grm_samples} \
          --useSparseGRMtoFitNULL=TRUE \
+         --useSparseGRMforVarRatio=TRUE \
          --plinkFile=${plink_set[0].toString().replace('.bed', '')} \
          --phenoFile=${pheno_file} \
          --phenoCol=${pheno} \
@@ -719,7 +756,7 @@ process call_saige_step1_quant_with_sparse_GRM {
          --outputPrefix=${pheno} \
          --traitType=quantitative \
          --invNormalize=TRUE \
-         --nThreads=29 \
+         --nThreads=${use_threads} \
          --IsOverwriteVarianceRatioFile=TRUE > ${pheno}.log
         """
     stub:
@@ -732,8 +769,9 @@ process call_saige_step1_quant_with_sparse_GRM {
 
 process call_saige_step1_survival_with_sparse_GRM {
     publishDir "${launchDir}/${cohort}/Saige_Step1/", enabled: {params.host != 'AOU'}
-    machineType 'n2-standard-4'
-    cpus 1
+    label 'saige_step1'
+    label 'saige_process'
+    cpus 16
 
     input:
         // variables
@@ -745,16 +783,18 @@ process call_saige_step1_survival_with_sparse_GRM {
         tuple val(cohort), val(pheno), path("${pheno}.rda"), path("${pheno}.varianceRatio.txt")
         path "${pheno}.log"
     shell:
+        use_threads = Math.max(1, task.cpus - 1)
         covariate_args = get_covar_list_args(cohort,
             params.sex_strat_cohort_list.contains(cohort) ? params.sex_strat_cat_covars : params.cat_covars,
             params.sex_strat_cohort_list.contains(cohort) ? params.sex_strat_cont_covars : params.cont_covars)
         vr_flag = is_gene ? '--isCateVarianceRatio=TRUE' : '--isCateVarianceRatio=FALSE'
         """
         echo "${cohort}-${pheno}"
-        stdbuf -e0 -o0 Rscript ${params.step1_script} \
+        stdbuf -e0 -o0 ${params.step1_script} \
          --sparseGRMFile=${sparse_grm} \
          --sparseGRMSampleIDFile=${sparse_grm_samples} \
          --useSparseGRMtoFitNULL=TRUE \
+         --useSparseGRMforVarRatio=TRUE \
          --plinkFile=${plink_set[0].toString().replace('.bed', '')} \
          --phenoFile=${pheno_file} \
          --phenoCol=${pheno} \
@@ -766,7 +806,7 @@ process call_saige_step1_survival_with_sparse_GRM {
          --eventTimeCol=${params.event_time_col} \
          --eventTimeBinSize=${params.event_time_bin} \
          --invNormalize=TRUE \
-         --nThreads=29 \
+         --nThreads=${use_threads} \
          --IsOverwriteVarianceRatioFile=TRUE > ${pheno}.log
         """
     stub:

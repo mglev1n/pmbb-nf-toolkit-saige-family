@@ -4,11 +4,11 @@ This is a collection of SAIGE Step 2 processes
 
 include {
     paramToList
+    WriteSaigeStep2Command
 } from '../processes/saige_helpers.nf'
 
 process filter_snps_plink {
     publishDir "${launchDir}/Filtered_Files/"
-    machineType 'n2-standard-4'
     input:
         tuple val(chr), path(plink_set)
         path(snp_list_file)
@@ -32,7 +32,6 @@ process filter_snps_plink {
 
 process filter_snps_bgen {
     publishDir "${launchDir}/Filtered_Files/"
-    machineType 'n2-standard-4'
     input:
         tuple val(chr), path(bgen_set)
         path(snp_list_file)
@@ -63,8 +62,8 @@ process filter_snps_bgen {
 
 process call_saige_step2_PLINK_binary {
     errorStrategy 'retry'
+    label 'saige_process'
     publishDir "${launchDir}/${cohort_dir}/Saige_Step2_Results/"
-    machineType 'n2-standard-4'
     disk {
         def fileSizeGb = plink_bed.size() / (1024 ** 3)
         return "${50 + fileSizeGb} GB"
@@ -146,7 +145,8 @@ process call_saige_step2_PLINK_binary {
             --is_Firth_beta=TRUE \
             --pCutoffforFirth=0.05 \
             --LOCO=${params.LOCO} \
-            --SAIGEOutputFile=${cohort_dir}.${pheno}.${chr}.txt \
+            --is_imputed_data=${params.isImputed} \
+            --minInfo=${params.minInfo} \            --SAIGEOutputFile=${cohort_dir}.${pheno}.${chr}.txt \
             > ${cohort_dir}.${pheno}.${chr}.txt
 
             gzip -9 ${cohort_dir}.${pheno}.${chr}.txt
@@ -162,7 +162,7 @@ process call_saige_step2_PLINK_binary {
 
 process call_saige_step2_PLINK_quant {
     publishDir "${launchDir}/${cohort_dir}/Saige_Step2_Results/"
-    machineType 'n2-standard-4'
+    label 'saige_process'
     disk {
         def fileSizeGb = plink_bed.size() / (1024 ** 3)
         return "${50 + fileSizeGb} GB"
@@ -231,7 +231,7 @@ process call_saige_step2_PLINK_quant {
         # Export the chromosome variable for Nextflow
         export CHROM_VAR="\$chrom"
 
-        stdbuf -e0 -o0 Rscript ${params.step2_script} \
+        stdbuf -e0 -o0 ${params.step2_script} \
         --bedFile=${plink_bed} \
         --bimFile=${plink_bim} \
         --famFile=${plink_fam} \
@@ -242,6 +242,8 @@ process call_saige_step2_PLINK_quant {
         --minMAF=${params.min_maf} \
         --minMAC=${params.min_mac} \
         --LOCO=${params.LOCO} \
+        --is_imputed_data=${params.isImputed} \
+        --minInfo=${params.minInfo} \
         --is_output_moreDetails=TRUE \
             > ${cohort_dir}.${pheno}.${chr}.log
 
@@ -258,7 +260,7 @@ process call_saige_step2_PLINK_quant {
 process call_saige_step2_PLINK_survival {
     errorStrategy 'retry'
     publishDir "${launchDir}/${cohort_dir}/Saige_Step2_Results/"
-    machineType 'n2-standard-4'
+    label 'saige_process'
     disk {
         def fileSizeGb = plink_bed.size() / (1024 ** 3)
         return "${50 + fileSizeGb} GB"
@@ -327,7 +329,7 @@ process call_saige_step2_PLINK_survival {
         # Export the chromosome variable for Nextflow
         export CHROM_VAR="\$chrom"
 
-        stdbuf -e0 -o0 Rscript ${params.step2_script} \
+        stdbuf -e0 -o0 ${params.step2_script} \
             --bedFile=${plink_bed} \
             --bimFile=${plink_bim} \
             --famFile=${plink_fam} \
@@ -340,6 +342,8 @@ process call_saige_step2_PLINK_survival {
             --is_Firth_beta=TRUE \
             --pCutoffforFirth=0.05 \
             --LOCO=${params.LOCO} \
+            --is_imputed_data=${params.isImputed} \
+            --minInfo=${params.minInfo} \
             --SAIGEOutputFile=${cohort_dir}.${pheno}.${chr}.txt \
             > ${cohort_dir}.${pheno}.${chr}.txt
 
@@ -357,7 +361,7 @@ process call_saige_step2_PLINK_survival {
 process call_saige_step2_BGEN_binary {
     publishDir "${launchDir}/${cohort_dir}/Saige_Step2_Results/"
     memory = '100 GB'
-    machineType 'n2-standard-4'
+    label 'saige_process'
     disk {
         def fileSizeGb = bgenFile.size() / (1024 ** 3)
         return "${50 + fileSizeGb} GB"
@@ -418,7 +422,7 @@ process call_saige_step2_BGEN_binary {
         export CHROM_VAR=\$chrom
 
         # Call the R script with the evaluated chrom variable
-        stdbuf -e0 -o0 Rscript ${params.step2_script} \
+        stdbuf -e0 -o0 ${params.step2_script} \
             --bgenFile=${bgenFile} \
             --bgenFileIndex=${bgenFileIndex} \
             --AlleleOrder=ref-first \
@@ -431,6 +435,8 @@ process call_saige_step2_BGEN_binary {
             --is_Firth_beta=TRUE \
             --pCutoffforFirth=${params.firth_cutoff} \
             --LOCO=${params.LOCO} \
+            --is_imputed_data=${params.isImputed} \
+            --minInfo=${params.minInfo} \
             --is_output_moreDetails=TRUE \
             --SAIGEOutputFile=${cohort_dir}.${pheno}.${chr}.txt \
         > ${cohort_dir}.${pheno}.${chr}.log
@@ -447,11 +453,11 @@ process call_saige_step2_BGEN_binary {
 
 process call_saige_step2_BGEN_quant {
     publishDir "${launchDir}/${cohort_dir}/Saige_Step2_Results/"
-    machineType 'n2-standard-4'
     disk {
         def fileSizeGb = bgenFile.size() / (1024 ** 3)
         return "${50 + fileSizeGb} GB"
     }
+    label 'saige_process'
     input:
         // variables
         tuple val(cohort_dir), val(pheno), path(step1_rda), path(step1_var), val(chr)
@@ -511,7 +517,7 @@ process call_saige_step2_BGEN_quant {
 
         export CHROM_VAR=\$chrom
 
-        stdbuf -e0 -o0 Rscript ${params.step2_script} \
+        stdbuf -e0 -o0 ${params.step2_script} \
          --bgenFile=${bgenFile}    \
          --bgenFileIndex=${bgenFileIndex} \
          --sampleFile=${bgen_sample_file} \
@@ -523,6 +529,8 @@ process call_saige_step2_BGEN_quant {
          --varianceRatioFile=${step1_var} \
          --SAIGEOutputFile=${cohort_dir}.${pheno}.${chr}.txt \
          --LOCO=${params.LOCO} \
+         --is_imputed_data=${params.isImputed} \
+         --minInfo=${params.minInfo} \
          --is_output_moreDetails=TRUE \
            > ${cohort_dir}.${pheno}.${chr}.log
 
@@ -539,7 +547,7 @@ process call_saige_step2_BGEN_quant {
 
 process call_saige_step2_BGEN_survival {
     publishDir "${launchDir}/${cohort_dir}/Saige_Step2_Results/"
-    machineType 'n2-standard-4'
+    label 'saige_process'
     disk {
         def fileSizeGb = bgenFile.size() / (1024 ** 3)
         return "${50 + fileSizeGb} GB"
@@ -600,7 +608,7 @@ process call_saige_step2_BGEN_survival {
         export CHROM_VAR=\$chrom
 
         # Call the R script with the evaluated chrom variable
-        stdbuf -e0 -o0 Rscript ${params.step2_script} \
+        stdbuf -e0 -o0 ${params.step2_script} \
             --bgenFile=${bgenFile} \
             --bgenFileIndex=${bgenFileIndex} \
             --AlleleOrder=ref-first \
@@ -613,6 +621,8 @@ process call_saige_step2_BGEN_survival {
             --is_Firth_beta=TRUE \
             --pCutoffforFirth=${params.firth_cutoff} \
             --LOCO=${params.LOCO} \
+            --is_imputed_data=${params.isImputed} \
+            --minInfo=${params.minInfo} \
             --is_output_moreDetails=TRUE \
             --SAIGEOutputFile=${cohort_dir}.${pheno}.${chr}.txt \
         > ${cohort_dir}.${pheno}.${chr}.log
@@ -629,7 +639,7 @@ process call_saige_step2_BGEN_survival {
 
 process call_saige_step2_BGEN_binary_with_sparse_GRM {
     publishDir "${launchDir}/${cohort_dir}/Saige_Step2_Results/"
-    machineType 'n2-standard-4'
+    label 'saige_process'
     disk {
         def fileSizeGb = bgenFile.size() / (1024 ** 3)
         return "${50 + fileSizeGb} GB"
@@ -691,7 +701,7 @@ process call_saige_step2_BGEN_binary_with_sparse_GRM {
 
         export CHROM_VAR=\$chrom
 
-        stdbuf -e0 -o0 Rscript ${params.step2_script} \
+        stdbuf -e0 -o0 ${params.step2_script} \
          --sparseGRMFile=${sparse_grm} \
          --sparseGRMSampleIDFile=${sparse_grm_samples} \
          --bgenFile=${bgenFile} \
@@ -706,6 +716,8 @@ process call_saige_step2_BGEN_binary_with_sparse_GRM {
          --is_Firth_beta=TRUE \
          --pCutoffforFirth=${params.firth_cutoff} \
          --LOCO=${params.LOCO} \
+         --is_imputed_data=${params.isImputed} \
+         --minInfo=${params.minInfo} \
          --is_output_moreDetails=TRUE \
          --SAIGEOutputFile=${cohort_dir}.${pheno}.${chr}.txt \
            > ${cohort_dir}.${pheno}.${chr}.log
@@ -723,7 +735,7 @@ process call_saige_step2_BGEN_binary_with_sparse_GRM {
 
 process call_saige_step2_BGEN_quant_with_sparse_GRM {
     publishDir "${launchDir}/${cohort_dir}/Saige_Step2_Results/"
-    machineType 'n2-standard-4'
+    label 'saige_process'
     disk {
         def fileSizeGb = bgenFile.size() / (1024 ** 3)
         return "${50 + fileSizeGb} GB"
@@ -787,7 +799,7 @@ process call_saige_step2_BGEN_quant_with_sparse_GRM {
 
         export CHROM_VAR=\$chrom
 
-        stdbuf -e0 -o0 Rscript ${params.step2_script} \
+        stdbuf -e0 -o0 ${params.step2_script} \
          --sparseGRMFile=${sparse_grm} \
          --sparseGRMSampleIDFile=${sparse_grm_samples} \
          --bgenFile=${bgenFile}    \
@@ -799,6 +811,8 @@ process call_saige_step2_BGEN_quant_with_sparse_GRM {
          --varianceRatioFile=${step1_var} \
          --SAIGEOutputFile=${cohort_dir}.${pheno}.${chr}.txt \
          --LOCO=${params.LOCO} \
+         --is_imputed_data=${params.isImputed} \
+         --minInfo=${params.minInfo} \
          --is_output_moreDetails=TRUE \
            > ${cohort_dir}.${pheno}.${chr}.log
 
@@ -815,7 +829,7 @@ process call_saige_step2_BGEN_quant_with_sparse_GRM {
 
 process call_saige_step2_BGEN_survival_with_sparse_GRM {
     publishDir "${launchDir}/${cohort_dir}/Saige_Step2_Results/"
-    machineType 'n2-standard-4'
+    label 'saige_process'
     disk {
         def fileSizeGb = bgenFile.size() / (1024 ** 3)
         return "${50 + fileSizeGb} GB"
@@ -878,7 +892,7 @@ process call_saige_step2_BGEN_survival_with_sparse_GRM {
 
         export CHROM_VAR=\$chrom
 
-        stdbuf -e0 -o0 Rscript ${params.step2_script} \
+        stdbuf -e0 -o0 ${params.step2_script} \
          --sparseGRMFile=${sparse_grm} \
          --sparseGRMSampleIDFile=${sparse_grm_samples} \
          --bgenFile=${bgenFile} \
@@ -893,6 +907,8 @@ process call_saige_step2_BGEN_survival_with_sparse_GRM {
          --is_Firth_beta=TRUE \
          --pCutoffforFirth=${params.firth_cutoff} \
          --LOCO=${params.LOCO} \
+         --is_imputed_data=${params.isImputed} \
+         --minInfo=${params.minInfo} \
          --is_output_moreDetails=TRUE \
          --SAIGEOutputFile=${cohort_dir}.${pheno}.${chr}.txt \
            > ${cohort_dir}.${pheno}.${chr}.log
@@ -910,7 +926,7 @@ process call_saige_step2_BGEN_survival_with_sparse_GRM {
 
 process call_saige_step2_PLINK_binary_with_sparse_GRM {
     publishDir "${launchDir}/${cohort_dir}/Saige_Step2_Results/"
-    machineType 'n2-standard-4'
+    label 'saige_process'
     disk {
         def fileSizeGb = plink_bed.size() / (1024 ** 3)
         return "${50 + fileSizeGb} GB"
@@ -981,7 +997,7 @@ process call_saige_step2_PLINK_binary_with_sparse_GRM {
         # Export the chromosome variable for Nextflow
         export CHROM_VAR="\$chrom"
 
-        stdbuf -e0 -o0 Rscript ${params.step2_script} \
+        stdbuf -e0 -o0 ${params.step2_script} \
         --sparseGRMFile=${sparse_grm} \
         --sparseGRMSampleIDFile=${sparse_grm_samples} \
         --bedFile=${plink_bed} \
@@ -995,6 +1011,8 @@ process call_saige_step2_PLINK_binary_with_sparse_GRM {
         --is_Firth_beta=TRUE \
         --pCutoffforFirth=0.05 \
         --LOCO=${params.LOCO} \
+        --is_imputed_data=${params.isImputed} \
+        --minInfo=${params.minInfo} \
         --is_output_moreDetails=TRUE \
         --SAIGEOutputFile=${cohort_dir}.${pheno}.${chr}.txt \
         > ${cohort_dir}.${pheno}.${chr}.log
@@ -1011,7 +1029,7 @@ process call_saige_step2_PLINK_binary_with_sparse_GRM {
 
 process call_saige_step2_PLINK_quant_with_sparse_GRM {
     publishDir "${launchDir}/${cohort_dir}/Saige_Step2_Results/"
-    machineType 'n2-standard-4'
+    label 'saige_process'
     disk {
         def fileSizeGb = plink_bed.size() / (1024 ** 3)
         return "${50 + fileSizeGb} GB"
@@ -1082,7 +1100,7 @@ process call_saige_step2_PLINK_quant_with_sparse_GRM {
         # Export the chromosome variable for Nextflow
         export CHROM_VAR="\$chrom"
 
-        stdbuf -e0 -o0 Rscript ${params.step2_script} \
+        stdbuf -e0 -o0 ${params.step2_script} \
         --sparseGRMFile=${sparse_grm} \
         --sparseGRMSampleIDFile=${sparse_grm_samples} \
         --bedFile=${plink_bed} \
@@ -1095,6 +1113,8 @@ process call_saige_step2_PLINK_quant_with_sparse_GRM {
         --varianceRatioFile=${step1_var} \
         --SAIGEOutputFile=${cohort_dir}.${pheno}.${chr}.txt \
         --LOCO=${params.LOCO} \
+        --is_imputed_data=${params.isImputed} \
+        --minInfo=${params.minInfo} \
         --is_output_moreDetails=TRUE \
         > ${cohort_dir}.${pheno}.${chr}.log
 
@@ -1110,7 +1130,7 @@ process call_saige_step2_PLINK_quant_with_sparse_GRM {
 
 process call_saige_step2_PLINK_survival_with_sparse_GRM {
     publishDir "${launchDir}/${cohort_dir}/Saige_Step2_Results/"
-    machineType 'n2-standard-4'
+    label 'saige_process'
     disk {
         def fileSizeGb = plink_bed.size() / (1024 ** 3)
         return "${50 + fileSizeGb} GB"
@@ -1180,7 +1200,7 @@ process call_saige_step2_PLINK_survival_with_sparse_GRM {
         # Export the chromosome variable for Nextflow
         export CHROM_VAR="\$chrom"
 
-        stdbuf -e0 -o0 Rscript ${params.step2_script} \
+        stdbuf -e0 -o0 ${params.step2_script} \
         --sparseGRMFile=${sparse_grm} \
         --sparseGRMSampleIDFile=${sparse_grm_samples} \
         --bedFile=${plink_bed} \
@@ -1194,6 +1214,8 @@ process call_saige_step2_PLINK_survival_with_sparse_GRM {
         --is_Firth_beta=TRUE \
         --pCutoffforFirth=0.05 \
         --LOCO=${params.LOCO} \
+        --is_imputed_data=${params.isImputed} \
+        --minInfo=${params.minInfo} \
         --is_output_moreDetails=TRUE \
         --SAIGEOutputFile=${cohort_dir}.${pheno}.${chr}.txt \
         > ${cohort_dir}.${pheno}.${chr}.log
@@ -1218,12 +1240,21 @@ workflow SAIGE_VAR_STEP2 {
         bgen_sample_file
         IS_PHEWAS
     main:
+        params.isImputed = "FALSE"  // Default to FALSE if not provided
+        params.minInfo = 0      // Default to 0.3 if not provided
         cohort = Channel.fromList(params.cohort_list)
         bin_pheno = Channel.fromList(paramToList(params.bin_pheno_list))
         quant_pheno = Channel.fromList(paramToList(params.quant_pheno_list))
         survival_pheno = Channel.fromList(paramToList(params.survival_pheno_list))
         if (params.enable_chunking) {
-            chromosome = Channel.fromList(paramToList(params.chunks_list))
+            chunks_list = paramToList(params.chunks_list)
+            // Filter chunks to only those matching chromosomes in chromosome_list
+            chromosome_set = params.chromosome_list.collect { it.toString() }.toSet()
+            filtered_chunks = chunks_list.findAll { chunk ->
+                def chrom = chunk.split('_')[0]
+                chromosome_set.contains(chrom)
+            }
+            chromosome = Channel.fromList(filtered_chunks)
         } else {
             chromosome = Channel.fromList(params.chromosome_list)
         }

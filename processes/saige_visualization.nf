@@ -2,7 +2,6 @@ import groovy.json.JsonBuilder
 
 process make_pheno_covar_summary_plots {
     publishDir "${launchDir}/Plots/"
-    machineType 'n2-standard-4'
     input:
         val cohort_list
         val bin_pheno_list
@@ -37,9 +36,16 @@ process make_pheno_covar_summary_plots {
 
 process make_saige_gwas_plots {
     publishDir "${launchDir}/Plots/"
-    machineType 'n2-standard-16'
-    memory '32GB'
-    label 'safe_to_skip'
+    label 'safe_to_skip', 'high_memory_plots'
+    // needs dynamic memory {} allocation
+    memory {
+        def fileSizeGb = sumstats.size() / (1024**3)
+        def max_mem_gb = 256
+        def requiredMemGb = Math.max(8, Math.ceil(fileSizeGb * 10))
+        def attempt_mem = Math.min(requiredMemGb, max_mem_gb)
+        return attempt_mem.GB
+    }
+
     input:
         // from singles_merge_output
         tuple val(cohort), val(pheno), path(sumstats)
@@ -68,9 +74,14 @@ process make_saige_gwas_plots {
 
 process make_gwas_plots_with_annot {
     publishDir "${launchDir}/Plots/"
-    machineType 'n2-standard-16'
-    memory '32GB'
-    label 'safe_to_skip'
+    memory {
+        def fileSizeGb = sumstats.size() / (1024**3)
+        def max_mem_gb = 256
+        def requiredMemGb = Math.max(8, Math.ceil(fileSizeGb * 10))
+        def attempt_mem = Math.min(requiredMemGb, max_mem_gb)
+        return attempt_mem.GB
+    }
+    label 'safe_to_skip', 'high_memory_plots'
     input:
         tuple val(cohort), val(pheno), path(sumstats), val(analysis), path(biofilter_annots)
         path plotting_script
@@ -99,9 +110,14 @@ process make_gwas_plots_with_annot {
 
 process make_saige_variant_phewas_plots {
     publishDir "${launchDir}/Plots/"
-    machineType 'n2-standard-16'
-    memory '32GB'
-    label 'safe_to_skip'
+    memory {
+        def fileSizeGb = singles_outputs.size() / (1024**3)
+        def max_mem_gb = 256
+        def requiredMemGb = Math.max(8, Math.ceil(fileSizeGb * 10))
+        def attempt_mem = Math.min(requiredMemGb, max_mem_gb)
+        return attempt_mem.GB
+    }
+    label 'safe_to_skip', 'high_memory_plots'
     input:
         tuple val(cohort), val(pheno_list), path(singles_outputs)
         path plotting_script
@@ -126,8 +142,14 @@ process make_saige_variant_phewas_plots {
 
 process make_saige_exwas_singles_plots {
     publishDir "${launchDir}/Plots/"
-    machineType 'n2-standard-4'
-    label 'safe_to_skip'
+    memory {
+        def fileSizeGb = singles_sumstats.size() / (1024**3)
+        def max_mem_gb = 256
+        def requiredMemGb = Math.max(8, Math.ceil(fileSizeGb * 10))
+        def attempt_mem = Math.min(requiredMemGb, max_mem_gb)
+        return attempt_mem.GB
+    }
+    label 'safe_to_skip', 'high_memory_plots'
     input:
         tuple val(cohort), val(pheno), path(singles_sumstats)
 
@@ -159,8 +181,14 @@ process make_saige_exwas_singles_plots {
 
 process make_saige_exwas_regions_plots {
     publishDir "${launchDir}/Plots/"
-    machineType 'n2-standard-4'
-    label 'safe_to_skip'
+    memory {
+        def fileSizeGb = regions_sumstats.size() / (1024**3)
+        def max_mem_gb = 256
+        def requiredMemGb = Math.max(8, Math.ceil(fileSizeGb * 10))
+        def attempt_mem = Math.min(requiredMemGb, max_mem_gb)
+        return attempt_mem.GB
+    }
+    label 'safe_to_skip', 'high_memory_plots'
     input:
         tuple val(cohort), val(pheno), path(regions_sumstats)
 
@@ -192,8 +220,7 @@ process make_saige_exwas_regions_plots {
 
 process make_saige_gene_phewas_regions_plots {
     publishDir "${launchDir}/Plots/"
-    machineType 'n2-standard-4'
-    label 'safe_to_skip'
+    label 'safe_to_skip', 'high_memory_plots'
     input:
         tuple val(cohort), val(chr), path(sumstats_file)
         path phenotype_descriptions
@@ -218,7 +245,6 @@ process make_saige_gene_phewas_regions_plots {
 
 process make_exwas_report_methods_blurb {
     publishDir "${launchDir}/Summary"
-    machineType 'n2-standard-4'
     input:
         path exwas_methods_script
         val params_dict
@@ -237,7 +263,6 @@ process make_exwas_report_methods_blurb {
 
 process make_exwas_report_src {
     publishDir "${launchDir}/Report/", mode: 'copy', overwrite: true
-    machineType 'n2-standard-4'
     input:
         path singles_plots
         path regions_plots
@@ -287,7 +312,6 @@ process make_exwas_report_src {
 
 process make_exwas_report {
     publishDir "${launchDir}/Report/", mode: 'copy', overwrite: true
-    machineType 'n2-standard-4'
     input:
         path report_source_dir
         path generate_html_script
@@ -314,7 +338,6 @@ process make_exwas_report {
 process collect_exwas_regions_plots {
     // Takes as input, list of manifest files and concatenates them
     publishDir "${launchDir}/Summary/"
-    machineType 'n2-standard-16'
     input:
         val(saige_analysis)
         path(plots_manifests)
@@ -344,7 +367,6 @@ process collect_exwas_regions_plots {
 process collect_exwas_singles_plots {
     // Takes as input, list of manifest files and concatenates them
     publishDir "${launchDir}/Summary/"
-    machineType 'n2-standard-16'
     input:
         val(saige_analysis)
         path(plots_manifests)
@@ -374,7 +396,6 @@ process collect_exwas_singles_plots {
 process collect_gwas_plots {
     // Takes as input, list of manifest files and concatenates them
     publishDir "${launchDir}/Summary/"
-    machineType 'n2-standard-16'
     input:
         val(saige_analysis)
         path(plots_manifests)
@@ -404,7 +425,6 @@ process collect_gwas_plots {
 process collect_gene_phewas_regions_plots {
     // Takes as input, list of manifest files and concatenates them
     publishDir "${launchDir}/Summary/"
-    machineType 'n2-standard-16'
     input:
         val(saige_analysis)
         path(plots_manifests)

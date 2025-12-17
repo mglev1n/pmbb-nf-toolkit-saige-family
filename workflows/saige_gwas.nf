@@ -122,8 +122,15 @@ workflow SAIGE_GWAS {
       if (params.enable_chunking) {
             // If chunking is enabled, use the first chunk in the list
             chunks_list = paramToList(params.chunks_list)
+            // Filter chunks to only those matching chromosomes in chromosome_list
+            chromosome_set = params.chromosome_list.collect { it.toString() }.toSet()
+            filtered_chunks = chunks_list.findAll { chunk ->
+                def chrom = chunk.split('_')[0]
+                chromosome_set.contains(chrom)
+            }
             step2_fam = "${params.step2_plink_prefix}${chunks_list[0]}.fam"
         } else {
+            // If chunking is disabled, use the first chromosome in the list
             step2_fam = "${params.step2_plink_prefix}${params.chromosome_list[0]}.fam"
         }
         //step2_fam = "${params.step2_plink_prefix}${params.chromosome_list[0]}.fam"

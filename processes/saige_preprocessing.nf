@@ -1,7 +1,6 @@
 
 process set_up_cohort {
     publishDir "${launchDir}/${cohort}/"
-    machineType 'n2-standard-4'
     input:
         val cohort
         path cohort_script
@@ -32,7 +31,6 @@ process set_up_cohort {
 /*
 process set_up_cohort_gwas_plink {
     publishDir "${launchDir}/${cohort}/"
-    machineType 'n2-standard-4'
     input:
         val cohort
         path cohort_script
@@ -63,7 +61,6 @@ process set_up_cohort_gwas_plink {
 
 process set_up_cohort_gwas_bgen {
     publishDir "${launchDir}/${cohort}/"
-    machineType 'n2-standard-4'
     input:
         val cohort
         path cohort_script
@@ -94,7 +91,6 @@ process set_up_cohort_gwas_bgen {
 //TODO change exome to genetic data label for readability
 process make_pheno_summaries {
     publishDir "${launchDir}/Summary/"
-    machineType 'n2-standard-4'
     input:
         val cohort_list
         val bin_pheno_list
@@ -124,7 +120,6 @@ process make_pheno_summaries {
 }
 /*
 process gpu_memory_reqs{
-    machineType 'n2-standard-4'
     input:
         val(cohort)
         val(pheno)
@@ -140,7 +135,6 @@ process gpu_memory_reqs{
 
 /*
 process check_bin_cohort_pheno_combo {
-    machineType 'n2-standard-4'
     input:
         tuple val(cohort), val(pheno)
         val(pheno_table)
@@ -163,7 +157,6 @@ process check_bin_cohort_pheno_combo {
 }
 
 process check_quant_cohort_pheno_combo {
-    machineType 'n2-standard-4'
     input:
         tuple val(cohort), val(pheno)
         val(pheno_table)
@@ -183,7 +176,6 @@ process check_quant_cohort_pheno_combo {
 
 // Actual process that parses the rows of the table:
 process parse_pheno_summary_table {
-    machineType 'n2-standard-4'
     
     cache false
     input:
@@ -305,7 +297,7 @@ workflow SAIGE_PREPROCESSING {
         pheno_table_filename = "${launchDir}/Summary/pheno_summaries.csv"
         // parse the pheno-cohort summary table
         all_pheno_table_lines = parse_pheno_summary_table(pheno_table, pheno_table_filename)
-        num_combos = params.cohort_list.size() * (bin_pheno_list.size() + quant_pheno_list.size() + survival_pheno_list.size())
+        num_combos = params.cohort_list.size() * (bin_pheno_list.size() + quant_pheno_list.size())
         num_channel = Channel.fromList(1..num_combos)
         lines_with_num = num_channel.combine(all_pheno_table_lines)
         pheno_table_info = lines_with_num.map { i, all_lines ->
