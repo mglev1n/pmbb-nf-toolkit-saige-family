@@ -143,7 +143,7 @@ if (str_detect(manhattan_df |> select(!!rlang::sym(args$chr_col)), "chr", ignore
   cli::cli_alert_info(
     "Chromosome column {.field {args$chr_col}} contains 'chr' prefix. ")
     manhattan_df <- manhattan_df |>
-      dplyr::mutate(!!rlang::sym(args$chr_col) = str_remove(!!rlang::sym(args$chr_col), "chr", ignore_case = TRUE))
+      dplyr::mutate(!!rlang::sym(args$chr_col) := str_remove(!!rlang::sym(args$chr_col), "chr", ignore_case = TRUE))
 }
 
 cli::cli_alert_info(
