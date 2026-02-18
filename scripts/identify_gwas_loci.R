@@ -237,7 +237,7 @@ if (length(missing_cols) > 0) {
   ))
 }
 
-if (str_detect(!!rlang::sym(args$chr_col), "chr", ignore_case = TRUE)) {
+if (str_detect(sumstats |> select(!!rlang::sym(args$chr_col)), "chr", ignore_case = TRUE)) {
   cli::cli_alert_info(
     "Chromosome column {.field {args$chr_col}} contains 'chr' prefix. ")
     sumstats <- sumstats |>
