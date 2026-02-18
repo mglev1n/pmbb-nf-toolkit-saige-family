@@ -141,11 +141,11 @@ manhattan_df <- sumstats |>
   dplyr::filter(!!p_sym < 0.001) |>
   dplyr::filter(dplyr::between(!!maf_sym, 0.05, 0.95) | !!p_sym < 5e-8)
 
-if (stringr::str_detect(manhattan_df |> select(!!rlang::sym(args$chr_col)), "chr", ignore_case = TRUE)) {
+if (stringr::str_detect(manhattan_df |> select(!!rlang::sym(args$chr_col)), "chr")) {
   cli::cli_alert_info(
     "Chromosome column {.field {args$chr_col}} contains 'chr' prefix. ")
     manhattan_df <- manhattan_df |>
-      dplyr::mutate(!!rlang::sym(args$chr_col) := str_remove(!!rlang::sym(args$chr_col), "chr", ignore_case = TRUE))
+      dplyr::mutate(!!rlang::sym(args$chr_col) := str_remove(!!rlang::sym(args$chr_col), "chr"))
 }
 
 cli::cli_alert_info(
