@@ -179,7 +179,7 @@ if (use_loci) {
 # ---------------------------------------------------------------------------
 # Output file paths
 # ---------------------------------------------------------------------------
-out_manhattan <- paste0(args$cohort, ".", args$phenotype, ".manhattan_vertical.png")
+out_manhattan <- paste0(args$cohort, ".", args$phenotype, ".manhattan.png")
 out_qq        <- paste0(args$cohort, ".", args$phenotype, ".qq.png")
 out_manifest  <- paste0(args$cohort, ".", args$phenotype, ".gwas.plots_manifest.csv")
 
