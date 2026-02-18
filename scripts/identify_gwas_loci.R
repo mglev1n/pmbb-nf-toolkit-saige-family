@@ -17,6 +17,7 @@ suppressPackageStartupMessages({
   if (!requireNamespace("optparse",  quietly = TRUE)) install.packages("optparse")
   if (!requireNamespace("cli",       quietly = TRUE)) install.packages("cli")
   if (!requireNamespace("dplyr",     quietly = TRUE)) install.packages("dplyr")
+  if (!requireNamespace("stringr",   quietly = TRUE)) install.packages("stringr")  
   if (!requireNamespace("vroom",     quietly = TRUE)) install.packages("vroom")
   if (!requireNamespace("tibble",    quietly = TRUE)) install.packages("tibble")
   if (!requireNamespace("scales",    quietly = TRUE)) install.packages("scales")
@@ -28,6 +29,7 @@ library(cli)
 library(dplyr)
 library(vroom)
 library(tibble)
+library(stringr)
 
 # ---------------------------------------------------------------------------
 # extract_loci()
@@ -237,7 +239,7 @@ if (length(missing_cols) > 0) {
   ))
 }
 
-if (str_detect(sumstats |> select(!!rlang::sym(args$chr_col)), "chr", ignore_case = TRUE)) {
+if (stringr::str_detect(sumstats |> select(!!rlang::sym(args$chr_col)), "chr", ignore_case = TRUE)) {
   cli::cli_alert_info(
     "Chromosome column {.field {args$chr_col}} contains 'chr' prefix. ")
     sumstats <- sumstats |>

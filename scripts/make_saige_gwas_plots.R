@@ -18,6 +18,7 @@ suppressPackageStartupMessages({
   if (!requireNamespace("optparse", quietly = TRUE)) install.packages("optparse")
   if (!requireNamespace("cli",      quietly = TRUE)) install.packages("cli")
   if (!requireNamespace("dplyr",    quietly = TRUE)) install.packages("dplyr")
+  if (!requireNamespace("stringr",    quietly = TRUE)) install.packages("stringr")
   if (!requireNamespace("vroom",    quietly = TRUE)) install.packages("vroom")
   if (!requireNamespace("readr",    quietly = TRUE)) install.packages("readr")
   if (!requireNamespace("ggplot2",  quietly = TRUE)) install.packages("ggplot2")
@@ -29,6 +30,7 @@ library(dplyr)
 library(vroom)
 library(readr)
 library(ggplot2)
+library(stringr)
 
 # ---------------------------------------------------------------------------
 # Command-line interface
@@ -139,7 +141,7 @@ manhattan_df <- sumstats |>
   dplyr::filter(!!p_sym < 0.001) |>
   dplyr::filter(dplyr::between(!!maf_sym, 0.05, 0.95) | !!p_sym < 5e-8)
 
-if (str_detect(manhattan_df |> select(!!rlang::sym(args$chr_col)), "chr", ignore_case = TRUE)) {
+if (stringr::str_detect(manhattan_df |> select(!!rlang::sym(args$chr_col)), "chr", ignore_case = TRUE)) {
   cli::cli_alert_info(
     "Chromosome column {.field {args$chr_col}} contains 'chr' prefix. ")
     manhattan_df <- manhattan_df |>
