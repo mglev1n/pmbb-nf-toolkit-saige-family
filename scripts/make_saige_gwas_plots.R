@@ -215,7 +215,7 @@ if (!is.null(subtitle)) {
 }
 
 ggplot2::ggsave(out_manhattan, manhattan_plot,
-                width = 10, height = 8, dpi = 300, bg = "white")
+                width = 14, height = 8, dpi = 300, bg = "white")
 cli::cli_alert_success("Saved Manhattan plot: {.path {out_manhattan}}")
 
 # ---------------------------------------------------------------------------
