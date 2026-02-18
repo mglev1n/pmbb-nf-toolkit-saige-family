@@ -247,15 +247,13 @@ def validate_gwas_params(params) {
         error "At least one of bin_pheno_list, quant_pheno_list, or survival_pheno_list must be non-empty"
 
     // --- Required: SAIGE scripts ---
+    // Note: these paths are inside the container, so existence cannot be checked
+    // on the host. We only verify the params are set.
     if (!params.step1_script)
         error "params.step1_script must be set"
-    if (!file(params.step1_script.toString()).exists())
-        error "params.step1_script not found: ${params.step1_script}"
 
     if (!params.step2_script)
         error "params.step2_script must be set"
-    if (!file(params.step2_script.toString()).exists())
-        error "params.step2_script not found: ${params.step2_script}"
 
     // --- Required: p_cutoff_summarize ---
     if (params.p_cutoff_summarize == null)
