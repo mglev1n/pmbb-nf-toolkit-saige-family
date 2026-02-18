@@ -91,6 +91,9 @@ cli::cli_alert_info("Reading sumstats: {.path {args$sumstats}}")
 
 sumstats <- vroom::vroom(args$sumstats, show_col_types = FALSE)
 
+# Extract p-values for QQ now, before we filter/modify sumstats
+qq_pvals <- sumstats |> dplyr::select(dplyr::all_of(args$p_col))
+
 # Confirm required columns exist
 required_cols <- c(args$chr_col, args$pos_col, args$maf_col,
                    args$beta_col, args$se_col, args$p_col)
@@ -141,7 +144,11 @@ manhattan_df <- sumstats |>
   dplyr::filter(!!p_sym < 0.001) |>
   dplyr::filter(dplyr::between(!!maf_sym, 0.05, 0.95) | !!p_sym < 5e-8)
 
-if (stringr::str_detect(manhattan_df |> select(!!rlang::sym(args$chr_col)), "chr")) {
+rm(sumstats)
+gc()
+
+if (is.character(manhattan_df[[args$chr_col]]) &&
+    any(stringr::str_starts(manhattan_df[[args$chr_col]], "chr"), na.rm = TRUE)) {
   cli::cli_alert_info(
     "Chromosome column {.field {args$chr_col}} contains 'chr' prefix. ")
     manhattan_df <- manhattan_df |>
@@ -179,7 +186,7 @@ if (use_loci) {
 # ---------------------------------------------------------------------------
 # Output file paths
 # ---------------------------------------------------------------------------
-out_manhattan <- paste0(args$cohort, ".", args$phenotype, ".manhattan.png")
+out_manhattan <- paste0(args$cohort, ".", args$phenotype, ".manhattan_vertical.png")
 out_qq        <- paste0(args$cohort, ".", args$phenotype, ".qq.png")
 out_manifest  <- paste0(args$cohort, ".", args$phenotype, ".gwas.plots_manifest.csv")
 
@@ -217,13 +224,15 @@ if (!is.null(subtitle)) {
 ggplot2::ggsave(out_manhattan, manhattan_plot,
                 width = 14, height = 8, dpi = 300, bg = "white")
 cli::cli_alert_success("Saved Manhattan plot: {.path {out_manhattan}}")
+rm(manhattan_df, annotation_df, manhattan_plot)
+gc()
 
 # ---------------------------------------------------------------------------
 # QQ plot
 # ---------------------------------------------------------------------------
 cli::cli_progress_step("Generating QQ plot")
 
-qq_plot <- levinmisc::gg_qq_df(sumstats, pval_col = !!p_sym)
+qq_plot <- levinmisc::gg_qq_df(qq_pvals, pval_col = !!p_sym)
 
 ggplot2::ggsave(out_qq, qq_plot,
                 width = 6, height = 6, dpi = 300, bg = "white")

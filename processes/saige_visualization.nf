@@ -44,7 +44,7 @@ process make_saige_gwas_plots_R {
     label 'safe_to_skip', 'high_memory_plots', 'r_environment'
     memory {
         def fileSizeGb   = sumstats.size() / (1024**3)
-        def requiredMemGb = Math.max(8, Math.ceil(fileSizeGb * 10))
+        def requiredMemGb = Math.max(32, Math.ceil(fileSizeGb * 30))
         return Math.min(requiredMemGb, 256).GB
     }
 
