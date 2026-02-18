@@ -54,7 +54,7 @@ process make_saige_gwas_plots_R {
         path(pheno_table)
 
     output:
-        path "${cohort}.${pheno}.{manhattan_vertical.png,qq.png,gwas.plots_manifest.csv}"
+        path "${cohort}.${pheno}.{manhattan.png,qq.png,gwas.plots_manifest.csv}"
 
     shell:
         def chr_col    = params.gwas_col_names.containsKey('CHR')        ? params.gwas_col_names['CHR']        : 'CHR'
@@ -85,7 +85,7 @@ process make_saige_gwas_plots_R {
         """
     stub:
         """
-        touch ${cohort}.${pheno}.manhattan_vertical.png
+        touch ${cohort}.${pheno}.manhattan.png
         touch ${cohort}.${pheno}.qq.png
         touch ${cohort}.${pheno}.gwas.plots_manifest.csv
         """
