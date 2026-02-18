@@ -7,6 +7,16 @@ params.host = ""
 params.max_vars_for_GRM = null
 params.pruning_r2_for_GRM = null
 
+// Optional postprocessing steps — each independently gated
+params.identify_loci      = true   // run distance-based locus identification + nearest gene
+params.make_plots         = true   // generate Manhattan and QQ plots (R/ggplot2)
+// params.annotate is already defined per-config; default declared here for safety
+params.annotate           = params.containsKey('annotate') ? params.annotate : false
+
+// Locus identification parameters
+params.genome_build       = 38     // genome build for get_nearest_gene (37 or 38)
+params.gwas_locus_distance = 500000 // half-window distance (bp) for get_loci
+
 MIN_BIN_CASES = 50
 MIN_QUANT_N = 500
 MIN_SURVIVAL_CASES = 50
@@ -63,6 +73,13 @@ log.info """\
     pheno_file_id_col       : ${params.id_col}
     p_cutoff_summarize      : ${params.p_cutoff_summarize}
     gwas_col_names          : ${params.gwas_col_names}
+
+    Optional Postprocessing
+    ==================================================
+    identify_loci           : ${params.identify_loci}
+    genome_build            : ${params.genome_build}
+    gwas_locus_distance     : ${params.gwas_locus_distance}
+    make_plots              : ${params.make_plots}
     annotate                : ${params.annotate}
     biofilter_loki          : ${params.biofilter_loki}
     biofilter_script        : ${params.biofilter_script}
@@ -78,7 +95,8 @@ include { SAIGE_VAR_STEP2 } from '../processes/saige_variant_step2.nf'
 include {
     merge_and_filter_saige_gwas_output
     gwas_make_biofilter_positions_input
-    make_summary_suggestive_gwas
+    identify_gwas_loci
+    collect_gwas_loci
     make_summary_table_with_annot
     gzipFiles
     MERGE_CHUNKS
@@ -86,9 +104,7 @@ include {
 
 include {
     make_pheno_covar_summary_plots
-    make_saige_gwas_plots
-    make_gwas_plots_with_annot
-    collect_gwas_plots
+    make_saige_gwas_plots_R
     } from '../processes/saige_visualization.nf'
 
 if (params.annotate) {
@@ -98,6 +114,7 @@ if (params.annotate) {
 include {
     get_script_file_names
     paramToList
+    validate_gwas_params
     dump_params_to_json
 } from '../processes/saige_helpers.nf'
 
@@ -106,7 +123,9 @@ workflow {
 }
 workflow SAIGE_GWAS {
   main:
-    // cohort = Channel.fromList(params.cohort_list)
+    // Validate all required parameters before any processes run
+    validate_gwas_params(params)
+
     chromosome = Channel.fromList(params.chromosome_list)
     plink_suffixes_list = ['.bed', '.bim', '.fam']
     ftype = params.ftype
@@ -208,38 +227,52 @@ workflow SAIGE_GWAS {
       - then map to split singles vs regions
     */
     // Collect saige output into channels for merge
-    
+
     merge_singles_script = script_name_dict['merge']
 
-    (singles_merge_output, filtered_singles_output) =  \
-    merge_and_filter_saige_gwas_output(step2_grouped_output, merge_singles_script)
-    
-    filtered_singles_output_list = filtered_singles_output.collect() //make list of filter paths
-    pos_input = filtered_singles_output.map { cohort, phecode, filtered_sumstats_path -> new Tuple(filtered_sumstats_path) }.collect()
-    
-    // ANNOTATIONS
-    if (params['annotate']) {
-            biofilter_input = gwas_make_biofilter_positions_input(pos_input)
-            bf_input_channel = Channel.of('GWAS').combine(biofilter_input)
-            biofilter_annots = BIOFILTER_POSITIONS(bf_input_channel)
-            plotting_script = script_name_dict['gwas_plots_with_annot']
-            anno_input = filtered_singles_output.combine(biofilter_annots)
-            plots = make_gwas_plots_with_annot(singles_merge_output.combine(biofilter_annots), \
-                                              plotting_script, pheno_table)
-            make_summary_table_with_annot(pos_input, biofilter_annots)
-            gwas_csvs = plots.filter{ it.name =~ /.*manifest.csv/ }.collect()
-            gwas_analysis = "gwas"
-    // gwas_manifest = collect_gwas_plots(gwas_analysis, gwas_csvs)
+    (singles_merge_output, filtered_singles_output) =
+        merge_and_filter_saige_gwas_output(step2_grouped_output, merge_singles_script)
+
+    pos_input = filtered_singles_output
+        .map { cohort, pheno, filtered_sumstats_path -> filtered_sumstats_path }
+        .collect()
+
+    // --- OPTIONAL: locus identification ---
+    // Runs distance-based clumping via gwasRtools::get_loci and annotates lead
+    // variants with the nearest gene via gwasRtools::get_nearest_gene.
+    // Outputs: per-phenotype {cohort}.{pheno}.gwas_loci.csv (published to Sumstats/)
+    //          Summary/saige_gwas_loci.csv (collected across all phenotypes)
+    if (params.identify_loci) {
+        loci_script    = script_name_dict['gwas_loci']
+        loci_per_pheno = identify_gwas_loci(singles_merge_output, loci_script)
+        collect_gwas_loci(loci_per_pheno.map { c, p, f -> f }.collect())
     }
 
-    else {
-        gwas_plots_script = script_name_dict['gwas_plots']
-        gwas_plots = make_saige_gwas_plots(singles_merge_output, gwas_plots_script, pheno_table)
-        // filtered_singles_output_list.view { "filtered: ${it }"}
-        make_summary_suggestive_gwas(pos_input)
-        gwas_csvs_2 = gwas_plots.filter{ it.name =~ /.*manifest.csv/ }.collect()
-        gwas_analysis_2 = "gwas"
-    // gwas_manifest_2 = collect_gwas_plots(gwas_analysis_2, gwas_csvs_2)
+    // --- OPTIONAL: Manhattan and QQ plots ---
+    // Uses levinmisc::gg_manhattan_df and levinmisc::gg_qq_df.
+    // If identify_loci is also enabled, up to 2 lead variants per chromosome
+    // are labelled on the Manhattan plot; otherwise no annotations are drawn.
+    if (params.make_plots) {
+        plot_script = script_name_dict['gwas_plots_r']
+
+        // Attach loci CSV to each sumstats entry, or pass a NO_FILE sentinel
+        // when locus identification is disabled.
+        plot_input = params.identify_loci
+            ? singles_merge_output.join(loci_per_pheno, by: [0, 1])
+            : singles_merge_output.map { c, p, s -> tuple(c, p, s, file('NO_FILE')) }
+
+        make_saige_gwas_plots_R(plot_input, plot_script, pheno_table)
+    }
+
+    // --- OPTIONAL: biofilter functional annotation ---
+    // Produces a positions file for biofilter and a summary table with
+    // functional annotations (saige_gwas_biofilter_annotated.csv).
+    // Runs independently of locus identification and plotting.
+    if (params.annotate) {
+        biofilter_input  = gwas_make_biofilter_positions_input(pos_input)
+        bf_input_channel = Channel.of('GWAS').combine(biofilter_input)
+        biofilter_annots = BIOFILTER_POSITIONS(bf_input_channel)
+        make_summary_table_with_annot(pos_input, biofilter_annots)
     }
 
     json_params = dump_params_to_json(params, 'saige_gwas')

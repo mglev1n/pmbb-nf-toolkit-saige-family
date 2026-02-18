@@ -34,6 +34,62 @@ process make_pheno_covar_summary_plots {
         '''
 }
 
+// make_saige_gwas_plots_R: R/ggplot2-based Manhattan and QQ plots.
+// Replaces the Python make_saige_gwas_plots process in the GWAS workflow.
+// Accepts an optional loci_csv (from identify_gwas_loci) for annotating lead
+// variants on the Manhattan plot. Pass file('NO_FILE') when loci identification
+// is disabled; the script handles the sentinel gracefully.
+process make_saige_gwas_plots_R {
+    publishDir "${launchDir}/Plots/"
+    label 'safe_to_skip', 'high_memory_plots'
+    memory {
+        def fileSizeGb   = sumstats.size() / (1024**3)
+        def requiredMemGb = Math.max(8, Math.ceil(fileSizeGb * 10))
+        return Math.min(requiredMemGb, 256).GB
+    }
+
+    input:
+        tuple val(cohort), val(pheno), path(sumstats), path(loci_csv)
+        path(plot_script)
+        path(pheno_table)
+
+    output:
+        path "${cohort}.${pheno}.{manhattan_vertical.png,qq.png,gwas.plots_manifest.csv}"
+
+    shell:
+        def chr_col  = params.gwas_col_names.containsKey('CHR')        ? params.gwas_col_names['CHR']        : 'CHR'
+        def pos_col  = params.gwas_col_names.containsKey('POS')        ? params.gwas_col_names['POS']        : 'POS_38'
+        def maf_col  = params.gwas_col_names.containsKey('AF_Allele2') ? params.gwas_col_names['AF_Allele2'] : 'EAF'
+        def beta_col = params.gwas_col_names.containsKey('BETA')       ? params.gwas_col_names['BETA']       : 'B'
+        def se_col   = params.gwas_col_names.containsKey('SE')         ? params.gwas_col_names['SE']         : 'SE'
+        def p_col    = params.gwas_col_names.containsKey('p.value')    ? params.gwas_col_names['p.value']    : 'p_value'
+        def build    = "hg${params.genome_build}"
+        def loci_arg = (loci_csv.name != 'NO_FILE') ? "--loci_csv ${loci_csv}" : ""
+        """
+        Rscript ${plot_script} \
+          --cohort     ${cohort} \
+          --phenotype  ${pheno} \
+          --sumstats   ${sumstats} \
+          --phenoTable ${pheno_table} \
+          --chr_col    ${chr_col} \
+          --pos_col    ${pos_col} \
+          --maf_col    ${maf_col} \
+          --beta_col   ${beta_col} \
+          --se_col     ${se_col} \
+          --p_col      ${p_col} \
+          --build      ${build} \
+          ${loci_arg}
+        """
+    stub:
+        """
+        touch ${cohort}.${pheno}.manhattan_vertical.png
+        touch ${cohort}.${pheno}.qq.png
+        touch ${cohort}.${pheno}.gwas.plots_manifest.csv
+        """
+}
+
+// make_saige_gwas_plots: legacy Python-based plotting process.
+// Retained for reference but no longer wired into the GWAS workflow.
 process make_saige_gwas_plots {
     publishDir "${launchDir}/Plots/"
     label 'safe_to_skip', 'high_memory_plots'

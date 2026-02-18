@@ -329,32 +329,89 @@ process make_summary_singles_output {
         '''
 }
 
-process make_summary_suggestive_gwas {
+// identify_gwas_loci: per-phenotype locus identification using R/gwasRtools.
+// Called once per cohort-phenotype combination when params.identify_loci = true.
+process identify_gwas_loci {
+    publishDir "${launchDir}/${cohort}/Sumstats/"
+    label 'safe_to_skip'
+
+    input:
+        tuple val(cohort), val(pheno), path(sumstats)
+        path(loci_script)
+
+    output:
+        tuple val(cohort), val(pheno), path("${cohort}.${pheno}.gwas_loci.csv")
+
+    shell:
+        def chr_col  = params.gwas_col_names.containsKey('CHR')        ? params.gwas_col_names['CHR']        : 'CHR'
+        def pos_col  = params.gwas_col_names.containsKey('POS')        ? params.gwas_col_names['POS']        : 'POS_38'
+        def snp_col  = params.gwas_col_names.containsKey('MarkerID')   ? params.gwas_col_names['MarkerID']   : 'RSID'
+        def maf_col  = params.gwas_col_names.containsKey('AF_Allele2') ? params.gwas_col_names['AF_Allele2'] : 'EAF'
+        def beta_col = params.gwas_col_names.containsKey('BETA')       ? params.gwas_col_names['BETA']       : 'B'
+        def se_col   = params.gwas_col_names.containsKey('SE')         ? params.gwas_col_names['SE']         : 'SE'
+        def p_col    = params.gwas_col_names.containsKey('p.value')    ? params.gwas_col_names['p.value']    : 'p_value'
+        """
+        Rscript ${loci_script} \
+          --cohort          ${cohort} \
+          --phenotype       ${pheno} \
+          --sumstats        ${sumstats} \
+          --chr_col         ${chr_col} \
+          --pos_col         ${pos_col} \
+          --snp_col         ${snp_col} \
+          --maf_col         ${maf_col} \
+          --beta_col        ${beta_col} \
+          --se_col          ${se_col} \
+          --p_col           ${p_col} \
+          --build           ${params.genome_build} \
+          --p_threshold     ${params.p_cutoff_summarize} \
+          --locus_distance  ${params.gwas_locus_distance}
+        """
+    stub:
+        """
+        touch ${cohort}.${pheno}.gwas_loci.csv
+        """
+}
+
+// collect_gwas_loci: aggregates per-phenotype loci CSVs into a single
+// cross-phenotype summary table (saige_gwas_loci.csv), sorted by CHR and POS.
+// Replaces the former make_summary_suggestive_gwas process.
+process collect_gwas_loci {
     publishDir "${launchDir}/Summary/"
     label 'safe_to_skip'
+
     input:
-        path(filtered_singles)
+        path(loci_files)
+
     output:
-        path('saige_gwas_suggestive.csv')
+        path('saige_gwas_loci.csv')
+
     script:
+        def chr_col = params.gwas_col_names.containsKey('CHR')  ? params.gwas_col_names['CHR'] : 'CHR'
+        def pos_col = params.gwas_col_names.containsKey('POS')  ? params.gwas_col_names['POS'] : 'POS_38'
         """
         #! ${params.my_python}
 
         import pandas as pd
+
+        input_list = [x.strip() for x in "${loci_files}".replace("[", "").replace("]", "").split()]
         dfs = []
-        input_list = [x.strip() for x in "${filtered_singles}".replace("[", "").replace("]", "").split()]
-        output = "saige_gwas_suggestive.csv"
-
         for f in input_list:
-            dfs.append(pd.read_csv(f))
+            df = pd.read_csv(f)
+            if len(df) > 0:
+                dfs.append(df)
 
-        chr_col = '${params.gwas_col_names.keySet().toList().contains('CHR') ? params.gwas_col_names['CHR'] : 'CHR' }'
-        pos_col = '${params.gwas_col_names.keySet().toList().contains('POS') ? params.gwas_col_names['POS'] : 'POS' }'
-        pd.concat(dfs).sort_values(by=[chr_col, pos_col]).to_csv(output, index=False)
+        if dfs:
+            chr_col = '${chr_col}'
+            pos_col = '${pos_col}'
+            combined = pd.concat(dfs, ignore_index=True)
+            sort_cols = [c for c in [chr_col, pos_col] if c in combined.columns]
+            combined.sort_values(by=sort_cols).to_csv('saige_gwas_loci.csv', index=False)
+        else:
+            pd.DataFrame().to_csv('saige_gwas_loci.csv', index=False)
         """
     stub:
         '''
-        touch saige_gwas_suggestive.csv
+        touch saige_gwas_loci.csv
         '''
 }
 
@@ -390,6 +447,11 @@ process gwas_make_biofilter_positions_input {
         '''
 }
 
+// make_summary_table_with_annot: optional, runs when params.annotate = true.
+// Joins filtered GWAS results with biofilter functional annotations and writes
+// a combined summary table. Gene labelling for standard use comes from
+// identify_gwas_loci (get_nearest_gene); this table provides additional
+// functional annotation beyond simple nearest-gene assignment.
 process make_summary_table_with_annot {
     publishDir "${launchDir}/Summary/"
     label 'safe_to_skip'
@@ -397,7 +459,7 @@ process make_summary_table_with_annot {
         path(all_filtered_sumstats)
         tuple val(data_nickname), path(biofilter_annots)
     output:
-        path('saige_gwas_suggestive.csv')
+        path('saige_gwas_biofilter_annotated.csv')
     script:
         """
         #! ${params.my_python}
@@ -405,7 +467,7 @@ process make_summary_table_with_annot {
         import pandas as pd
         dfs = []
         input_list = '${all_filtered_sumstats.join(' ')}'.split()
-        output = "saige_gwas_suggestive.csv"
+        output = "saige_gwas_biofilter_annotated.csv"
 
         for f in input_list:
             dfs.append(pd.read_csv(f))
@@ -419,7 +481,7 @@ process make_summary_table_with_annot {
         """
     stub:
         '''
-        touch saige_gwas_suggestive.csv
+        touch saige_gwas_biofilter_annotated.csv
         '''
 }
 

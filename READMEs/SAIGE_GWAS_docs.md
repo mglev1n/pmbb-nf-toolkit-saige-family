@@ -5,7 +5,18 @@ Documentation for SAIGE GWAS
 # Module Overview
 
 
-SAIGE GWAS is a pipeline for performing genome wide association studies of variants using the R-based SAIGE software. This module has the option of using the biofilter database to provide nearest gene annotation. 
+SAIGE GWAS is a pipeline for performing genome wide association studies of variants using the R-based SAIGE software.
+
+The pipeline is structured around a **core** step (always runs) and three **optional** postprocessing steps that can each be independently enabled or disabled:
+
+| Step | Parameter | Default | Description |
+|---|---|---|---|
+| Core | — | always | SAIGE Step 1 + Step 2 + merge summary statistics |
+| Locus identification | `identify_loci` | `true` | Distance-based independent locus clumping and nearest-gene annotation |
+| Plotting | `make_plots` | `true` | Manhattan and QQ plots (R/ggplot2) |
+| Biofilter annotation | `annotate` | `false` | Functional annotation via the biofilter database |
+
+All three optional steps are independent: enabling or disabling one does not affect the others.
 
 Please see 
 - [Tool Paper Link for Reference](https://www.nature.com/articles/s41588-018-0184-y)
@@ -275,8 +286,37 @@ nextflow run $TOOLS_DIR/pmbb-nf-toolkit-saige-family/workflows/saige_gwas.nf \
     * Format: txt
 ## Output Files for SAIGE_GWAS
 
+### Core outputs (always produced)
 
-_No output files defined for this module._
+| File | Location | Description |
+|---|---|---|
+| `{cohort}.{pheno}.gwas.saige.gz` | `{cohort}/Sumstats/` | Full merged summary statistics (all variants, gzipped) |
+| `{cohort}.{pheno}.gwas.filtered.saige.csv` | `{cohort}/Sumstats/` | Variants passing `p_cutoff_summarize` |
+| `pheno_summaries.csv` | `Summary/` | Sample counts (N, Cases, Controls) per phenotype-cohort |
+| `saige_gwas_params.json` | `Summary/` | All parameter values for this run |
+
+### Locus identification outputs (`identify_loci = true`)
+
+| File | Location | Description |
+|---|---|---|
+| `{cohort}.{pheno}.gwas_loci.csv` | `{cohort}/Sumstats/` | Per-phenotype lead variants (one row per independent locus), with nearest gene annotation |
+| `saige_gwas_loci.csv` | `Summary/` | Combined loci table across all phenotypes, sorted by CHR and POS. Replaces the former `saige_gwas_suggestive.csv`. |
+
+### Plotting outputs (`make_plots = true`)
+
+| File | Location | Description |
+|---|---|---|
+| `{cohort}.{pheno}.manhattan_vertical.png` | `Plots/` | Manhattan plot (R/ggplot2 via `levinmisc::gg_manhattan_df`). Lead variants labelled if `identify_loci = true`. |
+| `{cohort}.{pheno}.qq.png` | `Plots/` | QQ plot (R/ggplot2 via `levinmisc::gg_qq_df`) |
+| `{cohort}.{pheno}.gwas.plots_manifest.csv` | `Plots/` | Maps each phenotype to its plot file paths |
+
+### Biofilter annotation outputs (`annotate = true`)
+
+| File | Location | Description |
+|---|---|---|
+| `gwas_biofilter_input_positions.txt` | `Annotations/` | Variant positions submitted to biofilter |
+| `saige_gwas_biofilter_annotated.csv` | `Summary/` | Filtered results joined with biofilter functional annotations |
+
 ## Other Parameters for SAIGE_GWAS
 
 ### Association Test Modeling
@@ -291,10 +331,39 @@ _No output files defined for this module._
     * Categorical covariates for sex stratified cohorts to ensure model converges
 ### Post-Processing
 
+* `identify_loci` (Type: Boolean, Default: `true`)
+
+    * Run distance-based locus identification and nearest-gene annotation. Uses
+      `gwasRtools::get_loci` (no LD reference required) and `gwasRtools::get_nearest_gene`.
+      Output: per-phenotype `gwas_loci.csv` files collected into `Summary/saige_gwas_loci.csv`.
+
+* `make_plots` (Type: Boolean, Default: `true`)
+
+    * Generate Manhattan and QQ plots using `levinmisc::gg_manhattan_df` and
+      `levinmisc::gg_qq_df`. If `identify_loci` is also enabled, up to 2 lead variants per
+      chromosome are labelled on the Manhattan plot.
+
+* `annotate` (Type: Boolean, Default: `false`)
+
+    * Run biofilter functional annotation. Produces `saige_gwas_biofilter_annotated.csv`.
+      Runs independently of `identify_loci` and `make_plots`.
+
+* `genome_build` (Type: Integer, Default: `38`)
+
+    * Genome build for nearest-gene annotation via `gwasRtools::get_nearest_gene`. Must be
+      `37` or `38`.
+
+* `gwas_locus_distance` (Type: Integer, Default: `500000`)
+
+    * Half-window distance in base pairs used by `gwasRtools::get_loci` to define independent
+      loci. Two significant variants within `2 × gwas_locus_distance` bp of each other are
+      merged into a single locus. No LD reference panel is required.
 
 * `biofilter_close_dist` (Type: Float)
 
-    * The distance in bp for something to be considered “close” vs “far” with respect to nearest gene annotation. Value is often 5E4
+    * The distance in bp for something to be considered "close" vs "far" with respect to
+      biofilter nearest gene annotation. Value is often 5E4. Only relevant when
+      `annotate = true`.
 ### Pre-Processing
 
 

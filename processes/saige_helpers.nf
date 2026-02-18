@@ -34,6 +34,10 @@ Map get_script_file_names() {
     script_names['gwas_plots_with_annot'] = "${moduleDir}/../scripts/make_saige_gwas_plots_annotate.py"
     script_names['gwas_plots'] = "${moduleDir}/../scripts/make_saige_gwas_singles_plots.py"
 
+    // R-based replacements
+    script_names['gwas_loci']    = "${moduleDir}/../scripts/identify_gwas_loci.R"
+    script_names['gwas_plots_r'] = "${moduleDir}/../scripts/make_saige_gwas_plots.R"
+
     script_names['merge'] = "${moduleDir}/../scripts/merge_and_filter_saige_results.py"
 
     script_names['gb_phewas_plots'] = "${moduleDir}/../scripts/make_saige_gene_burden_phewas_plots_v2.py"
@@ -211,6 +215,79 @@ def getGpuMachineTypeChannel(numVariants, numParticipants) {
     // Grab machine type and return as a channel
     def machineType = gpuMemoryToMachineType[selectedMemory]
     return machineType
+}
+
+// ---------------------------------------------------------------------------
+// validate_gwas_params()
+//
+// Validates required parameters for the SAIGE GWAS workflow before any
+// processes run. Fails early with a clear error message rather than surfacing
+// cryptic failures mid-run.
+//
+// Called as the first statement inside workflow SAIGE_GWAS.
+// ---------------------------------------------------------------------------
+def validate_gwas_params(params) {
+
+    // --- Required: data inputs ---
+    if (!params.data_csv)
+        error "params.data_csv must be set"
+    if (!file(params.data_csv.toString()).exists())
+        error "params.data_csv file not found: ${params.data_csv}"
+
+    if (!params.cohort_sets)
+        error "params.cohort_sets must be set"
+    if (!file(params.cohort_sets.toString()).exists())
+        error "params.cohort_sets file not found: ${params.cohort_sets}"
+
+    // --- Required: at least one phenotype list is non-empty ---
+    def has_phenos = (paramToList(params.bin_pheno_list)
+                    + paramToList(params.quant_pheno_list)
+                    + paramToList(params.survival_pheno_list)).size() > 0
+    if (!has_phenos)
+        error "At least one of bin_pheno_list, quant_pheno_list, or survival_pheno_list must be non-empty"
+
+    // --- Required: SAIGE scripts ---
+    if (!params.step1_script)
+        error "params.step1_script must be set"
+    if (!file(params.step1_script.toString()).exists())
+        error "params.step1_script not found: ${params.step1_script}"
+
+    if (!params.step2_script)
+        error "params.step2_script must be set"
+    if (!file(params.step2_script.toString()).exists())
+        error "params.step2_script not found: ${params.step2_script}"
+
+    // --- Required: p_cutoff_summarize ---
+    if (params.p_cutoff_summarize == null)
+        error "params.p_cutoff_summarize must be set"
+    if (params.p_cutoff_summarize <= 0 || params.p_cutoff_summarize >= 1)
+        error "params.p_cutoff_summarize must be between 0 and 1 (got: ${params.p_cutoff_summarize})"
+
+    // --- Required: gwas_col_names must include a p-value key ---
+    if (!params.gwas_col_names || !params.gwas_col_names.containsKey('p.value'))
+        error "params.gwas_col_names must include an entry for 'p.value' (the raw SAIGE p-value column name)"
+
+    // --- New optional-step params ---
+    if (params.genome_build != 37 && params.genome_build != 38)
+        error "params.genome_build must be 37 or 38 (got: ${params.genome_build})"
+
+    if (params.gwas_locus_distance <= 0)
+        error "params.gwas_locus_distance must be a positive integer (got: ${params.gwas_locus_distance})"
+
+    // --- Conditional: biofilter annotation ---
+    if (params.annotate) {
+        if (!params.biofilter_loki)
+            error "params.annotate is true but params.biofilter_loki is not set"
+        if (!file(params.biofilter_loki.toString()).exists())
+            error "params.biofilter_loki not found: ${params.biofilter_loki}"
+        if (!params.biofilter_script)
+            error "params.annotate is true but params.biofilter_script is not set"
+        if (!file(params.biofilter_script.toString()).exists())
+            error "params.biofilter_script not found: ${params.biofilter_script}"
+    }
+
+    // Genetic data path validation is handled separately by
+    // check_input_genetic_data_parameters(), so it is not duplicated here.
 }
 
 import groovy.json.JsonBuilder
