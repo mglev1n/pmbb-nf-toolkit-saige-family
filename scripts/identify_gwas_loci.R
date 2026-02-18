@@ -54,16 +54,16 @@ library(tibble)
 # Returns a tibble of lead SNPs with gene annotation, or an empty tibble.
 # ---------------------------------------------------------------------------
 extract_loci <- function(df,
-                         snp_col     = RSID,
-                         chr_col     = CHR,
-                         pos_col     = POS_38,
-                         maf_col     = EAF,
-                         beta_col    = B,
-                         se_col      = SE,
-                         p_col       = p_value,
-                         p_threshold = 5e-8,
-                         build       = 38,
-                         ...) {
+                         snp_col        = RSID,
+                         chr_col        = CHR,
+                         pos_col        = POS_38,
+                         maf_col        = EAF,
+                         beta_col       = B,
+                         se_col         = SE,
+                         p_col          = p_value,
+                         p_threshold    = 5e-8,
+                         locus_distance = 500000,
+                         build          = 38) {
 
   snp_col  <- rlang::enquo(snp_col)
   chr_col  <- rlang::enquo(chr_col)
@@ -134,14 +134,16 @@ extract_loci <- function(df,
   # Identify independent loci
   cli::cli_progress_step("Identifying independent loci")
   df_loci <- df_filtered |>
-    gwasRtools::get_loci(snp_col  = snp_col_str,
-                         chr_col  = chr_col_str,
-                         pos_col  = pos_col_str,
-                         maf_col  = maf_col_str,
-                         beta_col = beta_col_str,
-                         se_col   = se_col_str,
-                         p_col    = p_col_str,
-                         ...) |>
+    gwasRtools::get_loci(snp_col     = snp_col_str,
+                         chr_col     = chr_col_str,
+                         pos_col     = pos_col_str,
+                         maf_col     = maf_col_str,
+                         beta_col    = beta_col_str,
+                         se_col      = se_col_str,
+                         p_col       = p_col_str,
+                         use_pvalue  = TRUE,
+                         n_bases     = locus_distance,
+                         p_threshold = p_threshold) |>
     dplyr::filter(lead)
 
   n_loci <- nrow(df_loci)
@@ -250,8 +252,8 @@ loci <- extract_loci(
   se_col         = !!rlang::sym(args$se_col),
   p_col          = !!rlang::sym(args$p_col),
   p_threshold    = args$p_threshold,
-  build          = args$build,
-  distance       = args$locus_distance
+  locus_distance = args$locus_distance,
+  build          = args$build
 )
 
 # Add cohort/phenotype columns for traceability in the collected summary table
