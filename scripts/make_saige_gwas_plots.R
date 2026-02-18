@@ -141,8 +141,8 @@ p_sym   <- rlang::sym(args$p_col)
 maf_sym <- rlang::sym(args$maf_col)
 
 manhattan_df <- sumstats |>
-  dplyr::filter(!!p_sym < 0.001) |>
-  dplyr::filter(dplyr::between(!!maf_sym, 0.05, 0.95) | !!p_sym < 5e-8)
+  dplyr::filter(!!p_sym < 0.01) |>
+  dplyr::filter(dplyr::between(!!maf_sym, 0.01, 0.99) | !!p_sym < 5e-8)
 
 rm(sumstats)
 gc()
