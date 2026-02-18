@@ -254,7 +254,7 @@ workflow SAIGE_GWAS {
     //          Summary/saige_gwas_loci.csv (collected across all phenotypes)
     if (params.identify_loci) {
         loci_script    = script_name_dict['gwas_loci']
-        loci_per_pheno = identify_gwas_loci(singles_merge_output, loci_script)
+        loci_per_pheno = identify_gwas_loci(filtered_singles_output, loci_script)
         collect_gwas_loci(loci_per_pheno.map { c, p, f -> f }.collect())
     }
 

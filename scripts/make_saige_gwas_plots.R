@@ -18,6 +18,7 @@ suppressPackageStartupMessages({
   if (!requireNamespace("optparse", quietly = TRUE)) install.packages("optparse")
   if (!requireNamespace("cli",      quietly = TRUE)) install.packages("cli")
   if (!requireNamespace("dplyr",    quietly = TRUE)) install.packages("dplyr")
+  if (!requireNamespace("vroom",    quietly = TRUE)) install.packages("vroom")
   if (!requireNamespace("readr",    quietly = TRUE)) install.packages("readr")
   if (!requireNamespace("ggplot2",  quietly = TRUE)) install.packages("ggplot2")
 })
@@ -25,6 +26,7 @@ suppressPackageStartupMessages({
 library(optparse)
 library(cli)
 library(dplyr)
+library(vroom)
 library(readr)
 library(ggplot2)
 
@@ -85,7 +87,7 @@ cli::cli_h1("SAIGE GWAS Plots")
 cli::cli_alert_info("Cohort: {.val {args$cohort}} | Phenotype: {.val {args$phenotype}}")
 cli::cli_alert_info("Reading sumstats: {.path {args$sumstats}}")
 
-sumstats <- readr::read_csv(args$sumstats, show_col_types = FALSE)
+sumstats <- vroom::vroom(args$sumstats, show_col_types = FALSE)
 
 # Confirm required columns exist
 required_cols <- c(args$chr_col, args$pos_col, args$maf_col,
@@ -103,7 +105,7 @@ if (length(missing_cols) > 0) {
 # ---------------------------------------------------------------------------
 # Build plot subtitle from phenotype summary table
 # ---------------------------------------------------------------------------
-pheno_tbl <- readr::read_csv(args$phenoTable, show_col_types = FALSE)
+pheno_tbl <- vroom::vroom(args$phenoTable, show_col_types = FALSE)
 pheno_row  <- pheno_tbl |>
   dplyr::filter(PHENO == args$phenotype, COHORT == args$cohort)
 
@@ -147,7 +149,7 @@ annotation_df <- NULL
 
 if (use_loci) {
   cli::cli_alert_info("Reading loci for annotations: {.path {args$loci_csv}}")
-  loci <- readr::read_csv(args$loci_csv, show_col_types = FALSE)
+  loci <- vroom::vroom(args$loci_csv, show_col_types = FALSE)
 
   if (nrow(loci) > 0) {
     p_sym_loci <- rlang::sym(args$p_col)

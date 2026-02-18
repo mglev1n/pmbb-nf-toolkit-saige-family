@@ -17,7 +17,7 @@ suppressPackageStartupMessages({
   if (!requireNamespace("optparse",  quietly = TRUE)) install.packages("optparse")
   if (!requireNamespace("cli",       quietly = TRUE)) install.packages("cli")
   if (!requireNamespace("dplyr",     quietly = TRUE)) install.packages("dplyr")
-  if (!requireNamespace("readr",     quietly = TRUE)) install.packages("readr")
+  if (!requireNamespace("vroom",     quietly = TRUE)) install.packages("vroom")
   if (!requireNamespace("tibble",    quietly = TRUE)) install.packages("tibble")
   if (!requireNamespace("scales",    quietly = TRUE)) install.packages("scales")
   if (!requireNamespace("rlang",     quietly = TRUE)) install.packages("rlang")
@@ -26,7 +26,7 @@ suppressPackageStartupMessages({
 library(optparse)
 library(cli)
 library(dplyr)
-library(readr)
+library(vroom)
 library(tibble)
 
 # ---------------------------------------------------------------------------
@@ -220,7 +220,7 @@ cli::cli_h1("SAIGE GWAS Locus Identification")
 cli::cli_alert_info("Cohort: {.val {args$cohort}} | Phenotype: {.val {args$phenotype}}")
 cli::cli_alert_info("Reading: {.path {args$sumstats}}")
 
-sumstats <- readr::read_csv(args$sumstats, show_col_types = FALSE)
+sumstats <- vroom::vroom(args$sumstats, show_col_types = FALSE)
 
 # Confirm all specified column names exist in the data
 required_cols <- c(args$snp_col, args$chr_col, args$pos_col,
