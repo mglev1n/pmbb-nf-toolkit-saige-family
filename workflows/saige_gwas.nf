@@ -14,8 +14,18 @@ params.make_plots         = true   // generate Manhattan and QQ plots (R/ggplot2
 params.annotate           = params.containsKey('annotate') ? params.annotate : false
 
 // Locus identification parameters
-params.genome_build       = 38     // genome build for get_nearest_gene (37 or 38)
+params.genome_build        = 38     // genome build for get_nearest_gene (37 or 38)
 params.gwas_locus_distance = 500000 // half-window distance (bp) for get_loci
+
+// R execution environment
+// r_libs_user: path to a pre-built R library directory containing gwasRtools
+// and levinmisc (and their dependencies). Sets R_LIBS_USER inside the process
+// before calling Rscript, so packages are loaded from there rather than
+// re-installed at runtime.
+// Example: r_libs_user = System.getenv('HOME') + "/R/rocker-rstudio/bioconductor-tidyverse_3.17"
+// The container for r_environment-labelled processes is configured in nextflow.config:
+//   process { withLabel: 'r_environment' { container = '/path/to/r.sif' } }
+params.r_libs_user = ""
 
 MIN_BIN_CASES = 50
 MIN_QUANT_N = 500

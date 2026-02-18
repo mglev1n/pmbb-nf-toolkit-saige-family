@@ -41,7 +41,7 @@ process make_pheno_covar_summary_plots {
 // is disabled; the script handles the sentinel gracefully.
 process make_saige_gwas_plots_R {
     publishDir "${launchDir}/Plots/"
-    label 'safe_to_skip', 'high_memory_plots'
+    label 'safe_to_skip', 'high_memory_plots', 'r_environment'
     memory {
         def fileSizeGb   = sumstats.size() / (1024**3)
         def requiredMemGb = Math.max(8, Math.ceil(fileSizeGb * 10))
@@ -57,15 +57,18 @@ process make_saige_gwas_plots_R {
         path "${cohort}.${pheno}.{manhattan_vertical.png,qq.png,gwas.plots_manifest.csv}"
 
     shell:
-        def chr_col  = params.gwas_col_names.containsKey('CHR')        ? params.gwas_col_names['CHR']        : 'CHR'
-        def pos_col  = params.gwas_col_names.containsKey('POS')        ? params.gwas_col_names['POS']        : 'POS_38'
-        def maf_col  = params.gwas_col_names.containsKey('AF_Allele2') ? params.gwas_col_names['AF_Allele2'] : 'EAF'
-        def beta_col = params.gwas_col_names.containsKey('BETA')       ? params.gwas_col_names['BETA']       : 'B'
-        def se_col   = params.gwas_col_names.containsKey('SE')         ? params.gwas_col_names['SE']         : 'SE'
-        def p_col    = params.gwas_col_names.containsKey('p.value')    ? params.gwas_col_names['p.value']    : 'p_value'
-        def build    = "hg${params.genome_build}"
-        def loci_arg = (loci_csv.name != 'NO_FILE') ? "--loci_csv ${loci_csv}" : ""
+        def chr_col    = params.gwas_col_names.containsKey('CHR')        ? params.gwas_col_names['CHR']        : 'CHR'
+        def pos_col    = params.gwas_col_names.containsKey('POS')        ? params.gwas_col_names['POS']        : 'POS_38'
+        def maf_col    = params.gwas_col_names.containsKey('AF_Allele2') ? params.gwas_col_names['AF_Allele2'] : 'EAF'
+        def beta_col   = params.gwas_col_names.containsKey('BETA')       ? params.gwas_col_names['BETA']       : 'B'
+        def se_col     = params.gwas_col_names.containsKey('SE')         ? params.gwas_col_names['SE']         : 'SE'
+        def p_col      = params.gwas_col_names.containsKey('p.value')    ? params.gwas_col_names['p.value']    : 'p_value'
+        def build      = "hg${params.genome_build}"
+        def loci_arg   = (loci_csv.name != 'NO_FILE') ? "--loci_csv ${loci_csv}" : ""
+        def r_libs     = params.r_libs_user ?: ""
+        def r_libs_cmd = r_libs ? "export R_LIBS_USER=\"${r_libs}\"" : ""
         """
+        ${r_libs_cmd}
         Rscript ${plot_script} \
           --cohort     ${cohort} \
           --phenotype  ${pheno} \

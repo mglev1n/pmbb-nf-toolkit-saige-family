@@ -333,7 +333,7 @@ process make_summary_singles_output {
 // Called once per cohort-phenotype combination when params.identify_loci = true.
 process identify_gwas_loci {
     publishDir "${launchDir}/${cohort}/Sumstats/"
-    label 'safe_to_skip'
+    label 'safe_to_skip', 'r_environment'
 
     input:
         tuple val(cohort), val(pheno), path(sumstats)
@@ -343,14 +343,17 @@ process identify_gwas_loci {
         tuple val(cohort), val(pheno), path("${cohort}.${pheno}.gwas_loci.csv")
 
     shell:
-        def chr_col  = params.gwas_col_names.containsKey('CHR')        ? params.gwas_col_names['CHR']        : 'CHR'
-        def pos_col  = params.gwas_col_names.containsKey('POS')        ? params.gwas_col_names['POS']        : 'POS_38'
-        def snp_col  = params.gwas_col_names.containsKey('MarkerID')   ? params.gwas_col_names['MarkerID']   : 'RSID'
-        def maf_col  = params.gwas_col_names.containsKey('AF_Allele2') ? params.gwas_col_names['AF_Allele2'] : 'EAF'
-        def beta_col = params.gwas_col_names.containsKey('BETA')       ? params.gwas_col_names['BETA']       : 'B'
-        def se_col   = params.gwas_col_names.containsKey('SE')         ? params.gwas_col_names['SE']         : 'SE'
-        def p_col    = params.gwas_col_names.containsKey('p.value')    ? params.gwas_col_names['p.value']    : 'p_value'
+        def chr_col   = params.gwas_col_names.containsKey('CHR')        ? params.gwas_col_names['CHR']        : 'CHR'
+        def pos_col   = params.gwas_col_names.containsKey('POS')        ? params.gwas_col_names['POS']        : 'POS_38'
+        def snp_col   = params.gwas_col_names.containsKey('MarkerID')   ? params.gwas_col_names['MarkerID']   : 'RSID'
+        def maf_col   = params.gwas_col_names.containsKey('AF_Allele2') ? params.gwas_col_names['AF_Allele2'] : 'EAF'
+        def beta_col  = params.gwas_col_names.containsKey('BETA')       ? params.gwas_col_names['BETA']       : 'B'
+        def se_col    = params.gwas_col_names.containsKey('SE')         ? params.gwas_col_names['SE']         : 'SE'
+        def p_col     = params.gwas_col_names.containsKey('p.value')    ? params.gwas_col_names['p.value']    : 'p_value'
+        def r_libs    = params.r_libs_user ?: ""
+        def r_libs_cmd = r_libs ? "export R_LIBS_USER=\"${r_libs}\"" : ""
         """
+        ${r_libs_cmd}
         Rscript ${loci_script} \
           --cohort          ${cohort} \
           --phenotype       ${pheno} \
