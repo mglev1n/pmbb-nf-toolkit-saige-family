@@ -237,6 +237,13 @@ if (length(missing_cols) > 0) {
   ))
 }
 
+if (str_detect(!!rlang::sym(args$chr_col), "chr", ignore_case = TRUE)) {
+  cli::cli_alert_info(
+    "Chromosome column {.field {args$chr_col}} contains 'chr' prefix. ")
+    sumstats <- sumstats |>
+      dplyr::mutate(!!rlang::sym(args$chr_col) = str_remove(!!rlang::sym(args$chr_col), "chr", ignore_case = TRUE))
+}
+
 # ---------------------------------------------------------------------------
 # Run locus identification
 # ---------------------------------------------------------------------------
